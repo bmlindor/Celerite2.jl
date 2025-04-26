@@ -14,43 +14,43 @@
 ## Types and structures
 	struct ComplexKernel{T} <: CeleriteKernel
 	# celerite kernel
-		a::Vector{T}
-		b::Vector{T}
-		c::Vector{T}
-		d::Vector{T}
+		log_a::Vector{T}
+		log_b::Vector{T}
+		log_c::Vector{T}
+		log_d::Vector{T}
 	end
 
-	function ComplexKernel(a::T,b::T,c::T,d::T) where T<:Float64
-		return ComplexKernel([a],[b],[c],[d])
+	function ComplexKernel(log_a::T,log_b::T,log_c::T,log_d::T) where T<:Float64
+		return ComplexKernel([log_a],[log_b],[log_c],[log_d])
 	end
 
 	function _get_coefficients(k::ComplexKernel) 
-		return (zeros(0), zeros(0), k.a, k.b, k.c, k.d)
+		return (zeros(0), zeros(0), exp(only(k.log_a)), exp(only(k.log_b)), exp(only(k.log_c)), exp(only(k.log_d)))
 	end
 
 	struct RealKernel{T} <: CeleriteKernel
 	# real celerite kernel
-		a::Vector{T}
-		c::Vector{T}
+		log_a::Vector{T}
+		log_c::Vector{T}
 	end
 
-	function RealKernel(a::T,c::T) where T<:Real
-		return RealKernel([a],[c])
+	function RealKernel(log_a::T,log_c::T) where T<:Float64
+		return RealKernel([log_a],[log_c])
 	end
 
 	function _get_coefficients(k::RealKernel) 
-		return (k.a, k.c, zeros(0), zeros(0), zeros(0), zeros(0))
+		return (exp(only(k.log_a)), exp(only(k.log_c)), zeros(0), zeros(0), zeros(0), zeros(0))
 	end
 
 	struct SHOKernel{T} <: CeleriteKernel
 	# Simple harmonic oscillator (SHO) kernel
-		logS0::Vector{T} 	# ∝ power spectral density at ω0
-		logQ::Vector{T} 	# oscillator quality factor
-		logω0::Vector{T} 	# frequency of undamped oscillator
+		log_S0::Vector{T} 	# ∝ power spectral density at ω0
+		log_Q::Vector{T} 	# oscillator quality factor
+		log_ω0::Vector{T} 	# frequency of undamped oscillator
 	end
 
-	function SHOKernel(logS0::T,logQ::T,logω0::T) where T<:Float64
-		return SHOKernel([logS0],[logQ],[logω0])
+	function SHOKernel(log_S0::T,log_Q::T,log_ω0::T) where T<:Float64
+		return SHOKernel([log_S0],[log_Q],[log_ω0])
 	end
 
 	function SHOKernel(;ρ::Float64,τ::Float64,stdev::Float64)
@@ -66,9 +66,8 @@
 
 	function _get_coefficients(k::SHOKernel) 
 		eps = 1e-5 # regularization parameter for numerical stability
+		S0 = exp(only(k.log_S0)); Q = exp(only(k.log_Q) ); ω0 =exp( only(k.log_ω0))
 		# overdamped if Q < 0.5
-		S0 = exp(only(k.logS0)); Q = exp(only(k.logQ) ); ω0 =exp( only(k.logω0))
-		# @assert Q > 0.0
 		if Q < 0.5 
 			f = sqrt(max(1 - 4 * Q^2,eps))
 			a = 0.5 * S0 * ω0 * Q
@@ -89,7 +88,7 @@
 		Q0::Vector{T}		# quality factor of secondary oscillation
 		dQ::Vector{T}		# difference in quality between the two modes 
 		frac::Vector{T}		# secondary-to-primary-mode amplitude fraction 
-		kernel::CeleriteKernel
+		kernels::CeleriteKernel
 	end
 
 	function RotationKernel(stdev::T,per::T,Q0::T,dQ::T,frac::T) where T<:Real
@@ -105,11 +104,11 @@
 		w2 = 8π .* Q2 ./ (per .* sqrt.(4 .* Q2.^2 .- 1))
 		S2 = frac .* amp ./ (w2 .* Q2)
 
-		kernel = SHOKernel(S1,Q1,w1) + SHOKernel(S2,Q2,w2)
-		return RotationKernel([stdev],[per],[Q0],[dQ],[frac],kernel)
+		kernels = SHOKernel(log(S1),log(Q1),log(w1)) + SHOKernel(log(S2),log(Q2),log(w2))
+		return RotationKernel([stdev],[per],[Q0],[dQ],[frac],kernels)
 	end
 
-	_get_coefficients(k::RotationKernel)=_get_coefficients(k.kernel)
+	_get_coefficients(k::RotationKernel)=_get_coefficients(k.kernels)
 # Kernel Operations
 	struct CeleriteKernelSum{T} <: CeleriteKernel
 	# sum of Celerite kernels
@@ -202,27 +201,28 @@
 	end
 
 	struct CeleriteKernelDiff{T} <: CeleriteKernel
+		# first derivative of a Celerite kernel wrt time lag
 		kernel::T
 	end
 
 	function _get_coefficients(k::CeleriteKernelDiff)
-		# for term in k.kernels
-	    ar, cr, ac, bc, cc, dc = _get_coefficients(k)
+	    ar, cr, ac, bc, cc, dc = _get_coefficients(k.kernel)
         final_coeffs = ([-ar * cr ^2],
             [ac],
             [ac * (dc^2 - cc^2) + 2 * bc * cc * dc],
             [bc * (dc^2 - cc^2) - 2 * ac * cc * dc],
-            [cc],
-            [dc])
+            [cc],[dc])
 		return final_coeffs
-
 	end
+
 ## Properties ##
 	# Allow keyword arguments
-	ComplexKernel(; a::Float64=0.0,b::Float64=0.0,c::Float64=0.0,d::Float64=0.0)=ComplexKernel(a,b,c,d)
-	RealKernel(; a::Real=0.0,c::Real=0.0)=RealKernel(a,c)
-	SHOKernel(;S0::Float64=0.0,Q::Float64=0.0,ω0::Float64=0.0)=SHOKernel(S0,Q,ω0) 
-	SHOKernel(;S0::Float64=0.0,Q::Float64=0.0,w0::Float64=0.0)=SHOKernel(S0,Q,w0)
+	ComplexKernel(; a::Float64=1.0,b::Float64=1.0,c::Float64=1.0,d::Float64=1.0)=ComplexKernel(log(a),log(b),log(c),log(d))
+	RealKernel(; a::Real=1.0,c::Real=1.0)=RealKernel(log(a),log(c))
+	ComplexKernel(; log_a::Float64=0.0,log_b::Float64=0.0,log_c::Float64=0.0,log_d::Float64=0.0)=ComplexKernel(log_a,log_b,log_c,log_d)
+	RealKernel(; log_a::Real=0.0,log_c::Real=0.0)=RealKernel(log_a,log_c)
+	SHOKernel(;S0::Float64=1.0,Q::Float64=1.0,ω0::Float64=1.0)=SHOKernel(log(S0),log(Q),log(ω0)) 
+	SHOKernel(;log_S0::Float64=1.0,log_Q::Float64=1.0,log_ω0::Float64=1.0)=SHOKernel(log_S0,log_Q,log_ω0)
 	SHOKernel(;ρ::Float64,τ::Float64,σ::Float64)=SHOKernel(;ρ=ρ,τ=τ,stdev=σ)
 	RotationKernel(;stdev::Float64=1.5,per::Float64=3.45,Q0::Float64=1.3,dQ::Float64=1.05,frac::Float64=0.5) = RotationKernel(stdev,per,Q0,dQ,frac)	
 	RotationKernel(;σ::Float64=1.5,per::Float64=3.45,Q0::Float64=1.3,dQ::Float64=1.05,frac::Float64=0.5) = RotationKernel(σ,per,Q0,dQ,frac)	
@@ -235,25 +235,25 @@
 	Base.size(k::CeleriteKernelProduct) = +(map(size,k.kernels)...)
 	Base.size(k::RotationKernel) = 5
 
-	get_kernel(k::ComplexKernel) = [only(k.a),only(k.b),only(k.c),only(k.d)]
-	get_kernel(k::SHOKernel) = [only(k.logS0),only(k.logQ),only(k.logω0)]
-	get_kernel(k::RealKernel) = [only(k.a),only(k.c)]
+	get_kernel(k::ComplexKernel) = [only(k.log_a),only(k.log_b),only(k.log_c),only(k.log_d)]
+	get_kernel(k::SHOKernel) = [only(k.log_S0),only(k.log_Q),only(k.log_ω0)]
+	get_kernel(k::RealKernel) = [only(k.log_a),only(k.log_c)]
 	get_kernel(k::CeleriteKernelSum) = cat(map(get_kernel,k.kernels)...,dims=1)
 	get_kernel(k::CeleriteKernelProduct) = cat(map(get_kernel,k.kernels)...,dims=1)	
 	get_kernel(k::RotationKernel) = [only(k.stdev),only(k.per),only(k.Q0),only(k.dQ),only(k.frac)]
 
 	# Update kernel components
 	function set_kernel!(kernel::ComplexKernel,vector)
-		kernel.a .= [vector[1]] ; kernel.b .= [vector[2]]
-		kernel.c .= [vector[3]] ; kernel.d .= [vector[4]]
+		kernel.log_a .= [vector[1]] ; kernel.log_b .= [vector[2]]
+		kernel.log_c .= [vector[3]] ; kernel.log_d .= [vector[4]]
 	end
 
 	function set_kernel!(kernel::RealKernel,vector)
-		kernel.a .= [vector[1]] ; kernel.c .= [vector[2]]
+		kernel.log_a .= [vector[1]] ; kernel.log_c .= [vector[2]]
 	end
 
 	function set_kernel!(kernel::SHOKernel,vector)
-		kernel.logS0 .= [vector[1]] ; kernel.logQ .= [vector[2]] ; kernel.logω0 .= [vector[3]]
+		kernel.log_S0 .= [vector[1]] ; kernel.log_Q .= [vector[2]] ; kernel.log_ω0 .= [vector[3]]
 	end
 
 	function set_kernel!(kernel::RotationKernel,vector)
@@ -316,17 +316,17 @@
  
 	function Base.show(io::IO, k::ComplexKernel)
 		return print(
-	    io, "Complex Celerite Kernel (a = ", only(k.a), ", b = ", only(k.b), ", c = ", only(k.c), ", d = ", only(k.d),")")
+	    io, "Complex Celerite Kernel (a = ", exp(only(k.log_a)), ", b = ", exp(only(k.log_b)), ", c = ", exp(only(k.log_c)), ", d = ", exp(only(k.log_d)),")")
 	end
 
-	# function Base.show(io::IO, k::SHOKernel)
-	# 	return print(
-	#     io, "Simple Harmonic Oscillator Kernel (S0 = ", only(k.S0), ", Q = ", only(k.Q), ", ω0 = ", only(k.ω0),")")
-	# end
+	function Base.show(io::IO, k::SHOKernel)
+		return print(
+	    io, "Simple Harmonic Oscillator Kernel (S0 = ", exp(only(k.log_S0)), ", Q = ", exp(only(k.log_Q)), ", ω0 = ", exp(only(k.log_ω0)),")")
+	end
 
 	function Base.show(io::IO, k::RealKernel)
 		return print(
-	    io, "Real Celerite Kernel (a = ", only(k.a), ", c = ", only(k.c), ")")
+	    io, "Real Celerite Kernel (a = ", exp(only(k.log_a)), ", c = ", exp(only(k.log_c)), ")")
 	end
 
 	function Base.show(io::IO,κ::CeleriteKernelSum)

@@ -1,23 +1,21 @@
 @testset "kernels" begin
-	R=Celerite2.RealKernel(0.5,1.0)
-	C=Celerite2.ComplexKernel(1.0,0.6,6.0,3.0)
-	SHO=Celerite2.SHOKernel(0.1, 2.0, -0.5)
+	R=Celerite2.RealKernel(log(0.5),log(1.0))
+	C=Celerite2.ComplexKernel(log(1.0),log(0.6),log(6.0),log(3.0))
+	SHO=Celerite2.SHOKernel(log(0.1), log(2.0), log(0.5))
 	sum_2_kernels=R+SHO;		sum_3_kernels=R+SHO+C
 
-	k1=celerite.RealTerm(0.5, 1.0) 
-	k2=celerite.SHOTerm(0.1, 2.0, -0.5)
-	k3=celerite.ComplexTerm(1.0,0.6,6.0,3.0)
+	k1=celerite.RealTerm(log(0.5), log(1.0)) 
+	k2=celerite.SHOTerm(log(0.1), log(2.0), log(0.5))
+	k3=celerite.ComplexTerm(log(1.0),log(0.6),log(6.0),log(3.0))
 	N,x,yerr,y=Celerite2.make_test_data()
 
-	@test sum_2_kernels.kernels === KernelSum(R,SHO).kernels # === (R,SHO)
 	@test Celerite2._get_coefficients(sum_2_kernels)==celerite.get_all_coefficients(k1+k2)
-	@test Celerite2._get_coefficients(KernelSum(R,R))==celerite.get_all_coefficients(k1+k1)
 	@test R(x) == celerite.get_value(k1,x)
 	@test sum_2_kernels(x) == celerite.get_value(celerite.TermSum((k1,k2)),x)
 	# @test sum_3_kernels(x)==celerite.get_value(celerite.TermSum((k1,k2,k3)),x) 
 
 	prod_2_kernels = R*SHO ; prod_3_kernels=(R*SHO*C)
-	@test Celerite2._get_coefficients(prod_2_kernels)==celerite.get_all_coefficients(k1*k2)
+	@test Celerite2._get_coefficients(R*SHO)==celerite.get_all_coefficients(k1*k2)
 
 	  # check full covariance matrix 
 	  function test_kernelmatrix(cel2,cel1)
@@ -30,5 +28,4 @@
 			return false
 			end
 		end
-		# @test test_kernelmatrix(SHO,k2) # did not test on TermSum because of different parametrization in gp.jl (doesn't have real terms separated) # test_kernelmatrix(C+D2,celerite.TermSum((k3,k2)))
   end

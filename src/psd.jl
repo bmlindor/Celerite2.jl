@@ -5,23 +5,23 @@
 
     where z = ω^2. 
   """
-  function _get_psd(kernel::CeleriteKernel, ω)
-  	# Compute the value of the power spectral density.
-        ar, cr, ac, bc, cc, dc = _get_coefficients(kernel)
+  function _psd(kernel::CeleriteKernel, ω::AbstractVector)
+  	  	# Compute the value of the power spectral density.
+        ar, cr, ac, bc, cc, dc = Celerite2._get_coefficients(kernel)
         ω² = ω.^2 
         ω⁴ = ω².^2 
         p = zeros(length(ω²))
         for i in 1:length(ar)
-            p = p + ar[i]*cr[i] ./ (cr[i]^2 .+ ω²)
+            p = p + ar[i]*cr[i] ./ (cr[i]*cr[i] .+ ω²)
         end
         for i in 1:length(ac)
-            ω0² = cc[i]^2 +dc[i]^2
-            p = p .+ ((ac[i]*cc[i]+bc[i]*dc[i])*ω0².+(ac[i]*cc[i]-bc[i]*dc[i]).*ω²) ./ (ω⁴ + 2.0*(cc[i]^2 - dc[i]^2).*ω²+ω0²*ω0²)
+            ω0² = cc[i]*cc[i]+dc[i]*dc[i]
+            p = p .+ ((ac[i]*cc[i].+bc[i]*dc[i])*ω0².+(ac[i]*cc[i]-bc[i]*dc[i]).*ω²) ./ (ω⁴ + 2.0*(cc[i]*cc[i]-dc[i]*dc[i]).*ω².+ω0²*ω0²)
         end
         return sqrt(2.0 / pi) .* p
     end
 
-function sturms_theorem(x)
+function _sturms_theorem(x::AbstractVector)
 	# Compute coefficients in the numerator & denominator of the PSD.
 	n_lor = round(Int, length(x)/4)
 
@@ -138,7 +138,7 @@ function _check_pos_def(coeffs)
     for j=1:Jr+Jc
         push!(sturm_coeff,aj[j],cj[j],cj[j],dj[j])
     end
-    num_pos_root = sturms_theorem(sturm_coeff)
+    num_pos_root = _sturms_theorem(sturm_coeff)
 	if num_pos_root > 0 
 	  return false
 	else

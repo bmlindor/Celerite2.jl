@@ -50,7 +50,6 @@
         gp.phi = _reshape!(gp.phi, J, N-1)
         Σy=Diagonal(σ.^2)
         coeffs = _get_coefficients(gp.kernel)
-        # sturms theorem
         logdetK = _factorize!(gp.D, gp.U, gp.W, gp.phi, coeffs , x, Σy)
         return logdetK
     end
@@ -92,8 +91,8 @@
     function _k_matrix(gp::CeleriteGP,xs...)
         # Can provide autocorrelation or cross-correlation
         @assert length(xs)<=2 
-        x1 = []
-        x2 = []
+        local x1::Array
+        local x2::Array
         if length(xs) >= 1
             x1 = xs[1]
         else
@@ -114,46 +113,7 @@
         k = _get_value(gp.kernel, τ)
         return k
     end
-    # Reconstruct cholesky factor from low-rank decomposition.
-    function _reconstruct_K(gp::CeleriteGP,x)
-        if gp.D == zeros(length(gp.x)) || size(gp.D) != size(gp.x)
-            throw("CeleriteGP must be computed for sorted input coordinates first.")
-        end
-        ar, cr, ac, bc, cc, dc = _get_coefficients(gp.kernel)
-        Jr = length(ar);    Jc = length(ac)
-        N = length(x)
-        @assert N == length(gp.x)
-        J = Jr + 2*Jc
-        # Reconstruct cholesky factor from low-rank decomposition:
-        Umat = copy(gp.U)
-        Wmat = copy(gp.W)
-        for n=1:N
-          if Jr > 0
-            for j=1:Jr
-              Umat[j,n] *= exp(-cc[j]*x[n])
-              Wmat[j,n] *= exp( cc[j]*x[n])
-            end
-          end
-          if (J-Jr) > 0
-            for j=1:Jc
-              Umat[Jr+2j-1,n] *= exp(-cc[j]*x[n])
-              Umat[Jr+2j  ,n] *= exp(-cc[j]*x[n])
-              Wmat[Jr+2j-1,n] *= exp( cc[j]*x[n])
-              Wmat[Jr+2j  ,n] *= exp( cc[j]*x[n])
-            end
-          end
-        end
-        L = tril(*(Umat', Wmat), -1)
-        # Add identity matrix, then multipy by D^{1/2}:
-        for i=1:N
-          L[i,i] = 1.0
-          for j=1:N
-            L[i,j] *=sqrt(gp.D[j])
-          end
-        end
-        K = L*L'
-        return K
-    end
+
 # Compute covariance, variance, and mean of the prior process.
     function Statistics.mean(gp::CeleriteGP)
         # equivalent to AbstractGPs.mean_vector(gp_prior.mean,x)
@@ -251,134 +211,71 @@
         return Normal.(m, sqrt.(v))
     end
 
-# Construct the posterior process implied by conditioning CeleriteGP at observations of y at x
-    # struct MyPosteriorGP <: AbstractGPs.PosteriorGP
-    #     prior
-    #     data
-    # end
     function AbstractGPs.posterior(gp::CeleriteGP,y::AbstractVector)
         mu = mean(gp)
         δ = y - mu
         α=apply_inverse(gp,y)
-        # return #AbstractGPs.PosteriorGP(gp,(x=gp.x,α=α,δ=δ))
+        return AbstractGPs.PosteriorGP(gp,(x=gp.x,α=α,δ=δ))
+    end
+# Construct the posterior process implied by conditioning CeleriteGP at observations of y at x. <- is equivalent to?  -> # Compute covariance, variance, and mean of the predictive distribution.
+    function mean_and_var(gp::CeleriteGP,y_train::AbstractVector,x::AbstractVector)
+        alpha = apply_inverse(gp,y_train)
+        Kxs = _k_matrix(gp,x,gp.x)
+        mu = Kxs * alpha
+        KxsT = transpose(Kxs)
+
+        v=zeros(length(x))
+        for i=1:length(x)
+        v[i] = -sum(KxsT[:,i] .* apply_inverse(gp, KxsT[:,i]))
+        end
+        σ² =  _get_value(gp.kernel,[0.0])[1] .+ v
+        return mu, σ²[1,:]
     end
 
-    # function posterior(gp,x_train, y_train,x)
-    # gp::Celerite2.CeleriteGP,x::AbstractVector,y_train)
-#     # # alpha =  _solve!(gp.D, gp.U, gp.W, gp.phi, y)
-#     alpha = Celerite2.apply_inverse(gp,y_train)
-#     Kxs = Celerite2._k_matrix(gp,x,gp.x)
-#     mu = Kxs * alpha
-#     # # KxsT = transpose(Kxs)
-#     # Cov = _k_matrix(gp,x)
-#     # # t1 = cov ; t2 = Kxs ; t3 = apply_inverse(gp,KxsT)
-#     # cov = cov - Kxs * apply_inverse(gp,KxsT) 
-#     # # BL: error  "must have singleton at dim 2"  exists in celerite 
-        # # solution? either cov .- Kxs * alpha OR cov - Kxs .* alpha
-    # end
-# Compute covariance, variance, and mean of the predictive distribution.
-    # function mymean(post_gp,x::AbstractVector) # correct value but dont want to do inverse of K cuz it's expensive
-    #     gp_prior = post_gp.prior
-    #     mu0 = AbstractGPs.mean_vector(gp_prior.mean,x)
-    #     mu = mu0 .+ _k_matrix(gp_prior,gp_prior.x,x)' * inv(_k_matrix(gp_prior,gp_prior.x,gp_prior.x)  + gp_prior.Σy)  * post_gp.data.δ
-    #     return mu
-    #  end
-    # function mycov(post_gp,x)
-    #     C = _k_matrix(gp_prior,x,x) - _k_matrix(gp_prior,gp_prior.x,x)' * (_k_matrix(gp_prior,gp_prior.x,gp_prior.x)  + gp_prior.Σy) *  _k_matrix(gp_prior,gp_prior.x,x)
-    # return C
-    # end
+    function cov(gp::CeleriteGP,y_train::AbstractVector,x::AbstractVector)
+        Kxs = _k_matrix(gp,x,gp.x)
+        cov = _k_matrix(gp,x)
+        cov -= Kxs * apply_inverse(gp,KxsT) 
+        # # BL: error  "must have singleton at dim 2"  exists in celerite 
+    end
 
-    # Statistics.cov(gp::CeleriteGP,x::AbstractVector) = _k_matrix(gp,x)
-    # Statistics.cov(gp::CeleriteGP,x₁::AbstractVector,x₂::AbstractVector) = _k_matrix(gp,x₁,x₂)
-
-    # function Statistics.var(gp::CeleriteGP)
-    #     N = length(gp.x); 
-    #     Kxs = Celerite2._k_matrix(gp,gp.x)
-    #     KxsT = transpose(Kxs)
-    #     Kinv_KxsT = apply_inverse(gp,KxsT)
-    #     variance = _get_value(gp.kernel,[0.0]) - _diag_dot(KxsT, Kinv_KxsT)
-    #     return variance
-    #     # v = zeros(N)
-    #     # Kxs = _get_matrix(gp,gp.x)
-    #     # KxsT = transpose(Kxs)
-    #     # for i=1:N
-    #     #   v[i] = -sum(KxsT[:,i] .* apply_inverse(gp, KxsT[:,i]))
-    #     # end
-    #     # v = v + _get_value(gp.kernel, [0.0])[1]
-    #     # return v[1, :]
-    # end
-
-
-# BL: AbstractGPs is not recognizing CeleriteGP as a type alias for FiniteGP, per https://github.com/JuliaLang/julia/issues/40448 so not doing that
-# const AbstractCeleriteGP = GP{<:MeanFunction,<:Union{CeleriteKernel}}  
-# const CeleriteGP = FiniteGP{<:AbstractCeleriteGP,<:AbstractVector, <:Diagonal{<:Real, <:AbstractGPs.FillArrays.Fill}} 
-# BL : other required functions for JuliaGP
-# - AbstractGPs.marginals()
-# - AbstractGPs.posterior()
-#=
-### TO DO: translate following celerite for conditional
-# function _var(gp)
-    # var= kernel.get_value(0.0) - self._diagdot(self.KxsT, self.Kinv_KxsT)
-# return var
-# end
-# function _mean() #for conditional
-    # mu = zeros(length(gp.x))
-    # mu = self._do_dot(alpha, mu)
-    # if self.include_mean:
-    # mu += self.gp._mean(self._xs)
-    # return mu
-# end
-    def _do_dot(self, inp, target):
-        if self.kernel is None:
-            kernel = self.gp.kernel
-            U1 = self.gp._U
-            V1 = self.gp._V
-        else:
-            kernel = self.kernel
-            if self._U1 is None or self._V1 is None:
-                _, _, self._U1, self._V1 = kernel.get_celerite_matrices(
-                    self.gp._t,
-                    self.gp._zeros_like(self.gp._t),
-                    U=self._U1,
-                    V=self._V1,
-                )
-            U1 = self._U1
-            V1 = self._V1
-
-        if self._c2 is None or self._U2 is None or self._V2 is None:
-            self._c2, _, self._U2, self._V2 = kernel.get_celerite_matrices(
-                self._xs,
-                self.gp._zeros_like(self._xs),
-                c=self._c2,
-                U=self._U2,
-                V=self._V2,
-            )
-        c = self._c2
-        U2 = self._U2
-        V2 = self._V2
-                is_vector = False
-        if inp.ndim == 1:
-            is_vector = True
-            inp = inp[:, None]
-            target = target[:, None]
-
-        target = self._do_general_matmul(c, U1, V1, U2, V2, inp, target)
-
-        if is_vector:
-            return target[:, 0]
-        return target
-   # def _do_general_matmul(self, c, U1, V1, U2, V2, inp, target):
-   #      target = driver.general_matmul_lower(
-   #          self._xs, self.gp._t, c, U2, V1, inp, target)
-   #      target = driver.general_matmul_upper(
-   #          self._xs, self.gp._t, c, V2, U1, inp, target)
-   #      return target
-   #  def _do_dot_tril(self, y):
-   #      z = y * np.sqrt(self._d)[:, None]
-   #      return driver.matmul_lower(self._t, self._c, self._U, self._W, z, z)
-# function _covar(gp)
-    # neg_cov = -kernel.get_value(self._xs[:, None] - self._xs[None, :])
-    # neg_cov = self._do_dot(self.Kinv_KxsT, neg_cov)
-    # return -neg_cov
-# end
-=#
+# Reconstruct cholesky factor from low-rank decomposition.
+    function _reconstruct_K(gp::CeleriteGP,x)
+        if gp.D == zeros(length(gp.x)) || size(gp.D) != size(gp.x)
+            throw("CeleriteGP must be computed for sorted input coordinates first.")
+        end
+        ar, cr, ac, bc, cc, dc = _get_coefficients(gp.kernel)
+        Jr = length(ar);    Jc = length(ac)
+        N = length(x)
+        @assert N == length(gp.x)
+        J = Jr + 2*Jc
+        # Reconstruct cholesky factor from low-rank decomposition:
+        Umat = copy(gp.U)
+        Wmat = copy(gp.W)
+        for n=1:N
+          if Jr > 0
+            for j=1:Jr
+              Umat[j,n] *= exp(-cc[j]*x[n])
+              Wmat[j,n] *= exp( cc[j]*x[n])
+            end
+          end
+          if (J-Jr) > 0
+            for j=1:Jc
+              Umat[Jr+2j-1,n] *= exp(-cc[j]*x[n])
+              Umat[Jr+2j  ,n] *= exp(-cc[j]*x[n])
+              Wmat[Jr+2j-1,n] *= exp( cc[j]*x[n])
+              Wmat[Jr+2j  ,n] *= exp( cc[j]*x[n])
+            end
+          end
+        end
+        L = tril(*(Umat', Wmat), -1)
+        # Add identity matrix, then multipy by D^{1/2}:
+        for i=1:N
+          L[i,i] = 1.0
+          for j=1:N
+            L[i,j] *=sqrt(gp.D[j])
+          end
+        end
+        K = L*L'
+        return K
+    end
