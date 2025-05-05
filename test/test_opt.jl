@@ -1,4 +1,4 @@
-include("../src/cel2.jl")
+include("../src/Celerite2.jl")
 # include("../../src/celerite.jl")
 using .Celerite2,Random,Statistics,Test,KernelFunctions,LinearAlgebra,Optim,StatsBase,PyPlot
 
