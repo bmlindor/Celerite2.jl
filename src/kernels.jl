@@ -25,7 +25,7 @@
 	end
 
 	function _get_coefficients(k::ComplexKernel) 
-		return (zeros(0), zeros(0), exp(only(k.log_a)), exp(only(k.log_b)), exp(only(k.log_c)), exp(only(k.log_d)))
+		return (zeros(0), zeros(0), [exp(only(k.log_a))], [exp(only(k.log_b))], [exp(only(k.log_c))], [exp(only(k.log_d))])
 	end
 
 	struct RealKernel{T} <: CeleriteKernel
@@ -39,7 +39,7 @@
 	end
 
 	function _get_coefficients(k::RealKernel) 
-		return (exp(only(k.log_a)), exp(only(k.log_c)), zeros(0), zeros(0), zeros(0), zeros(0))
+		return ([exp(only(k.log_a))], [exp(only(k.log_c))], zeros(0), zeros(0), zeros(0), zeros(0))
 	end
 
 	struct SHOKernel{T} <: CeleriteKernel

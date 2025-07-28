@@ -2,7 +2,7 @@ module Celerite2
 
 using Random, Base, LinearAlgebra, Statistics, StatsBase
 using KernelFunctions, Distributions, AbstractGPs
-using OMEinsum,Polynomials
+using OMEinsum,Polynomials,ForwardDiff
 
 import AbstractGPs: MeanFunction 
 import Base.+, Base.*, Base.length, Base.product

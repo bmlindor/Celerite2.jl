@@ -1,8 +1,9 @@
 function _factorize!(D::Vector{Float64}, U::Array{Float64, 2},W::Array{Float64, 2},phi::Array{Float64,2},coeffs::NTuple{6,Vector{Float64}}, x::Vector{Float64}, Σy::Diagonal{Float64})
     # Do cholesky decomposition.
     ar, cr, ac, bc, cc, dc=coeffs
-    J,N = size(U)
+    N = size(x,1)
     Jr = length(ar);    Jc = length(ac)
+    J = Jr + 2*Jc
     # Allocate array for recursive computation of low-rank matrices:   
     S::Array{Float64, 2} = zeros(J, J)
     # A =  σ.^2 
@@ -84,7 +85,8 @@ function _factorize!(D::Vector{Float64}, U::Array{Float64, 2},W::Array{Float64, 
         Dn = A[n] - 2 * Dn
         D[n] = Dn
         if Dn <= 0
-            throw("Diagonal matrix is not positive definite.")
+            println("Diagonal matrix is not positive definite.")
+            Dn = D[n-1]
         end
 
         for j in 1:J
@@ -135,7 +137,7 @@ function _simulate_gp(D::Vector{Float64},U::Array{Float64, 2},W::Array{Float64, 
 end
 # BL: what if q is matrix?
 
-function _init_matrices(kernel::CeleriteKernel,x::AbstractVector,σ::AbstractVector)
+function _init_matrices(kernel::Tk,x::AbstractVector,σ::AbstractVector) where Tk <: CeleriteKernel
     # Initialize matrices for K
     ar, cr, ac, bc, cc, dc = _get_coefficients(kernel)
     # Compute the dimensions of the problem:
