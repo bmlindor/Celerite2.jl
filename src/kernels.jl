@@ -53,14 +53,14 @@
 		return SHOKernel([log_S0],[log_Q],[log_ω0])
 	end
 
-	function SHOKernel(;ρ::Float64,τ::Float64,stdev::Float64)
+	function SHOKernel(;ρ::Float64,τ::Float64,σ::Float64)
 		# alternative parameterization
 		# ρ::Vector{T} # the undamped period of the oscillator
 		# τ::Vector{T} # the damping timescale of the process
 		# σ::Vector{T} # the standard deviation of the process
 		ω0 = 2pi/ρ
 		Q = τ * ω0 * 0.5
-		S0 = stdev^2 / ω0*Q
+		S0 = σ^2 / ω0*Q
 		return SHOKernel(log(S0),log(Q),log(ω0))
 	end
 
@@ -83,29 +83,29 @@
 
 	struct RotationKernel{T} <: CeleriteKernel
 		# mixture of two SHO kernels that models stellar rotation
-		stdev::Vector{T} 	# standard deviation of process
-		per::Vector{T} 		# primary period of variability
+		σ::Vector{T} 		# standard deviation of the process
+		period::Vector{T} 	# primary period of variability
 		Q0::Vector{T}		# quality factor of secondary oscillation
 		dQ::Vector{T}		# difference in quality between the two modes 
 		frac::Vector{T}		# secondary-to-primary-mode amplitude fraction 
 		kernels::CeleriteKernel
 	end
 
-	function RotationKernel(stdev::T,per::T,Q0::T,dQ::T,frac::T) where T<:Real
-		amp = stdev.^2 ./ (1 .+ frac)
+	function RotationKernel(σ::T,period::T,Q0::T,dQ::T,frac::T) where T<:Real
+		amp = σ.^2 ./ (1 .+ frac)
 		@assert 0.0 <= frac <= 1.0
 		# First mode at period:
 		Q1 = 0.5 .+ Q0 .+ dQ
-		w1 = 4π .* Q1 ./ (per .* sqrt.(4 .* Q1.^2 .- 1))
+		w1 = 4π .* Q1 ./ (period .* sqrt.(4 .* Q1.^2 .- 1))
 		S1 = amp ./ (w1 .* Q1)
 
 		# Second mode at half the period:
 		Q2 = 0.5 .+ Q0 .+ dQ
-		w2 = 8π .* Q2 ./ (per .* sqrt.(4 .* Q2.^2 .- 1))
+		w2 = 8π .* Q2 ./ (period .* sqrt.(4 .* Q2.^2 .- 1))
 		S2 = frac .* amp ./ (w2 .* Q2)
 
 		kernels = SHOKernel(log(S1),log(Q1),log(w1)) + SHOKernel(log(S2),log(Q2),log(w2))
-		return RotationKernel([stdev],[per],[Q0],[dQ],[frac],kernels)
+		return RotationKernel([σ],[period],[Q0],[dQ],[frac],kernels)
 	end
 
 	_get_coefficients(k::RotationKernel)=_get_coefficients(k.kernels)
@@ -223,9 +223,8 @@
 	RealKernel(; log_a::Real=0.0,log_c::Real=0.0)=RealKernel(log_a,log_c)
 	SHOKernel(;S0::Float64=1.0,Q::Float64=1.0,ω0::Float64=1.0)=SHOKernel(log(S0),log(Q),log(ω0)) 
 	SHOKernel(;log_S0::Float64=1.0,log_Q::Float64=1.0,log_ω0::Float64=1.0)=SHOKernel(log_S0,log_Q,log_ω0)
-	SHOKernel(;ρ::Float64,τ::Float64,σ::Float64)=SHOKernel(;ρ=ρ,τ=τ,stdev=σ)
-	RotationKernel(;stdev::Float64=1.5,per::Float64=3.45,Q0::Float64=1.3,dQ::Float64=1.05,frac::Float64=0.5) = RotationKernel(stdev,per,Q0,dQ,frac)	
-	RotationKernel(;σ::Float64=1.5,per::Float64=3.45,Q0::Float64=1.3,dQ::Float64=1.05,frac::Float64=0.5) = RotationKernel(σ,per,Q0,dQ,frac)	
+	RotationKernel(;σ::Float64=1.5,period::Float64=3.45,Q0::Float64=1.3,dQ::Float64=1.05,frac::Float64=0.5) = RotationKernel(σ,period,Q0,dQ,frac)	
+	RotationKernel(;σ::Float64=1.5,period::Float64=3.45,log_Q0::Float64=1.3,log_dQ::Float64=1.05,frac::Float64=0.5) = RotationKernel(σ,period,exp(log_Q0),exp(log_dQ),frac)	
 
 	# Overload size to length of components
 	Base.size(k::ComplexKernel) = 4
@@ -240,7 +239,7 @@
 	get_kernel(k::RealKernel) = [only(k.log_a),only(k.log_c)]
 	get_kernel(k::CeleriteKernelSum) = cat(map(get_kernel,k.kernels)...,dims=1)
 	get_kernel(k::CeleriteKernelProduct) = cat(map(get_kernel,k.kernels)...,dims=1)	
-	get_kernel(k::RotationKernel) = [only(k.stdev),only(k.per),only(k.Q0),only(k.dQ),only(k.frac)]
+	get_kernel(k::RotationKernel) = [only(k.stdev),only(k.period),only(k.Q0),only(k.dQ),only(k.frac)]
 
 	# Update kernel components
 	function set_kernel!(kernel::ComplexKernel,vector)
@@ -257,7 +256,7 @@
 	end
 
 	function set_kernel!(kernel::RotationKernel,vector)
-		kernel.stdev .= [vector[1]] ; kernel.per .= [vector[2]] ; kernel.Q0 .= [vector[3]]
+		kernel.stdev .= [vector[1]] ; kernel.period .= [vector[2]] ; kernel.Q0 .= [vector[3]]
 		kernel.dQ .= [vector[4]] ; kernel.frac .= [vector[5]] 
 	end
 
@@ -275,7 +274,6 @@
 
 	# Aliases
 	const HarmonicOscillatorKernel = SHOKernel
-	const OrnsteinUhlenbeckKernel = RealKernel
 	const DampedRandomWalkKernel = RealKernel
 	const DRWKernel = RealKernel
 
@@ -311,7 +309,7 @@
 	# Show components
 	function Base.show(io::IO, k::RotationKernel)
 		return print(
-	    io, "Rotation Kernel (stdev = ", only(k.stdev), ", per = " , only(k.per),", Q0 = ", only(k.Q0), ", dQ = ", only(k.dQ), ", frac = ", only(k.frac),")")
+	    io, "Rotation Kernel (stdev = ", only(k.stdev), ", period = " , only(k.period),", Q0 = ", only(k.Q0), ", dQ = ", only(k.dQ), ", frac = ", only(k.frac),")")
 	end
  
 	function Base.show(io::IO, k::ComplexKernel)

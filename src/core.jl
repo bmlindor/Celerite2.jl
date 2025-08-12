@@ -15,7 +15,7 @@ function _factorize!(D::Vector{Float64}, U::Array{Float64, 2},W::Array{Float64, 
         U[j,1] = ar[j]
         W[j,1] = value
     end
-    # BL: we compute these recursively to save time
+    # EA: we compute these recursively to save time
     cosdt = zeros(Float64,Jc) ; sindt = zeros(Float64,Jc)
     for j in 1:Jc
         cosdt[j] = cos(dc[j]*x[1]) 
@@ -85,8 +85,11 @@ function _factorize!(D::Vector{Float64}, U::Array{Float64, 2},W::Array{Float64, 
         Dn = A[n] - 2 * Dn
         D[n] = Dn
         if Dn <= 0
-            println("Diagonal matrix is not positive definite.")
+            @warn "Diagonal is not positive definite." 
+            # This should only happen during parameter inference.
             Dn = D[n-1]
+            # break?
+            #  apply sturm's theorem ?
         end
 
         for j in 1:J
@@ -127,15 +130,31 @@ function _simulate_gp(D::Vector{Float64},U::Array{Float64, 2},W::Array{Float64, 
     # Multiply lower Cholesky factor by random normal deviates:
     tmp = sqrt(D[1]) * q[1]
     y[1] = tmp
-    for n=2:N
+    @inbounds for n=2:N
         f .= phi[:,n-1] .* (f .+ W[:,n-1] .* tmp)
-        tmp = sqrt(D[n]) * q[n]
+        tmp = sqrt(D[n]) * q[n] # error where it's attempting to access q[N+1]
         y[n] = tmp + dot( U[:,n],f)
     end
     # Returns simulated correlated noise
     return y
 end
 # BL: what if q is matrix?
+function _simulate_gp(D::Vector{Float64},U::Array{Float64, 2},W::Array{Float64, 2},phi::Array{Float64,2},q::AbstractArray)
+    J,N = size(U)
+    nrhs = size(q, 2)
+    y=zeros(Float64,N)
+    f=zeros(Float64,J,nrhs)
+    # Multiply lower Cholesky factor by random normal deviates:
+    tmp = sqrt(D[1]) * q[:,1]
+    y[:,1] = tmp
+    @inbounds for n=2:N
+        f .= phi[:,n-1] .* (f .+ W[:,n-1] .* tmp)
+        tmp = sqrt(D[n]) .* q[:,n] 
+        y[:,n] = tmp +  dot(U[:,n],f)
+    end
+    # Returns simulated correlated noise
+    return y
+end
 
 function _init_matrices(kernel::Tk,x::AbstractVector,σ::AbstractVector) where Tk <: CeleriteKernel
     # Initialize matrices for K

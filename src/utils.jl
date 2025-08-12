@@ -6,43 +6,6 @@ RotationKernel(s::ForwardDiff.Dual,t::ForwardDiff.Dual,u::ForwardDiff.Dual,v::Fo
 
 SHOKernel(u::ForwardDiff.Dual,v::Float64,z::ForwardDiff.Dual) = SHOKernel(ForwardDiff.value.(u),v,ForwardDiff.value.(z))
 
-## deprecated
-    struct logSHOKernel{T} <: CeleriteKernel
-    # Simple harmonic oscillator (SHO) kernel
-        logS0::Vector{T}    # ∝ power spectral density at ω0
-        logQ::Vector{T}     # oscillator quality factor
-        logω0::Vector{T}    # frequency of undamped oscillator
-    end
-
-    function logSHOKernel(logS0::T,logQ::T,logω0::T) where T<:Float64
-        return logSHOKernel([logS0],[logQ],[logω0])
-    end
-
-    function _get_coefficients(k::logSHOKernel) 
-        eps = 1e-5 # for numerical stability
-        # overdamped if Q < 0.5
-        S0 = exp(only(k.logS0)); Q = exp(only(k.logQ)) ; ω0 = exp(only(k.logω0))
-        # @assert Q > 0.0
-        if Q < 0.5 
-            # f = sqrt(max(1 - 4 * Q^2,eps))
-            f = sqrt(1 - 4 * Q^2)
-            a = 0.5 * S0 * ω0 * Q
-            c = 0.5 * ω0 / Q
-            return ([a * (1 + 1 / f), a * (1 - 1 / f)], [c * (1 - f), c * (1 + f)], 
-                zeros(0), zeros(0), zeros(0),zeros(0))
-        end
-        # f = sqrt(max(4 * Q^2 - 1,eps))
-        f = sqrt(4 * Q^2 - 1)
-        a =  S0 * ω0 * Q
-        c = 0.5 * ω0 / Q
-        return (zeros(0), zeros(0), [a], [a / f], [c], [c * f])
-    end
-    Base.size(k::logSHOKernel) = 3
-    get_kernel(k::logSHOKernel) = [only(k.logS0),only(k.logQ),only(k.logω0)]
-    function set_kernel!(kernel::logSHOKernel,vector)
-        kernel.logS0 .= [vector[1]] ; kernel.logQ .= [vector[2]] ; kernel.logω0 .= [vector[3]]
-    end
-
 ## Utils adopted from celerite.jl
     function _full_solve(k::CeleriteKernel, x::Vector,σ::Vector)
         # Compute the full covariance matrix.

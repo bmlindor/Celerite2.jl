@@ -108,6 +108,8 @@ using .Celerite2,Random,Statistics,Test,KernelFunctions,LinearAlgebra,Optim,Stat
 	mask_mean = ones(Bool,length(vector_mean))
 	mask_mean[3] = false
 	res_mean_LBFGS = optimize(nll_mean, vector_mean[mask_mean],Optim.LBFGS())
+	# println(res_mean_LBFGS.minimizer)
+	# [3.1558052718461456,-2.052508255299794,-3.971541989475279,2.2009980296918314,1.127985820268802]
 	t1 = time()
 	mu_ldlt, variance_ldlt = celerite.predict_full_ldlt(orig_gp, y, true_x, return_var=true)
 	telapsed_ldlt = time() -t1
@@ -143,7 +145,7 @@ using .Celerite2,Random,Statistics,Test,KernelFunctions,LinearAlgebra,Optim,Stat
     end
     mu_rec = Celerite2.predict!(gp,x,y,true_x)
 
-	comp_gp(mymu,myvar)
+	# comp_gp(mymu,myvar)
 
 	freq = range(1.0 / 8,stop= 1.0 / 0.3, length=500)
 	omega = 2 * pi * freq
@@ -163,6 +165,59 @@ using .Celerite2,Random,Statistics,Test,KernelFunctions,LinearAlgebra,Optim,Stat
 		ax.set_yscale("log")
 		savefig("test/figures/2025_psd.png")
     end
-    plot_psd(gp)
+    # plot_psd(gp)
     close()
 end
+#=
+# python equivalent
+import numpy as np
+import matplotlib.pyplot as plt
+import celerite2
+from celerite2 import terms
+from scipy.optimize import minimize
+import h5py 
+data = h5py.File('research/multis/simulated_gp_data.h5','r')
+y=np.array(data['data']['yobs'])
+x=np.array(data['data']['xobs'])
+yerr = np.array(data['data']['yerr'])
+true_x = np.array(data['data']['true_x'])
+true_y = np.array(data['data']['true_y'])
+w0=3.0; Q=1.0/np.sqrt(2.0)
+S0 = np.var(y) / (w0 * Q)
+term1 = terms.SHOTerm(w0=w0, Q=Q,S0=S0)
+w0=3.0; Q=1.0
+S0 = np.var(y) / (w0 * Q)
+term2 = terms.SHOTerm(w0=w0, Q=Q,S0=S0)
+kernel= term1+term2
+gp = celerite2.GaussianProcess(kernel, mean=0.0)
+gp.compute(np.sort(x), yerr=yerr)
+print("Initial log likelihood: {0}".format(gp.log_likelihood(y)))
+Initial log likelihood: -148.45712640218147
+def neg_log_like(params, gp):
+    gp = set_params(params, gp)
+    return -gp.log_likelihood(y)
+
+def plot_prediction(gp):
+    plt.plot(true_x, true_y, "k", lw=1.5, alpha=0.3, label="data")
+    plt.errorbar(x, y, yerr=yerr, fmt=".k", capsize=0, label="truth")
+    mu, variance = gp.predict(y, t=true_x, return_var=True)
+    sigma = np.sqrt(variance)
+    plt.plot(true_x, mu, label="prediction")
+    plt.fill_between(true_x, mu - sigma, mu + sigma, color="C0", alpha=0.2)
+
+def set_params(params, gp):
+	theta = np.exp(params[0:])
+	gp.kernel =  terms.SHOTerm(S0=theta[0], Q=0.70710,w0=theta[1]) + terms.SHOTerm(S0=theta[2], Q=theta[3], w0=theta[4]) 
+	gp.compute(np.sort(x), diag=yerr**2, quiet=True)
+	return gp
+
+initial_params = [ 0.0, 0.0, 0.0,0.0,0.0]
+soln = minimize(neg_log_like, initial_params, method="L-BFGS-B", args=(gp,))
+opt_gp = set_params(soln.x, gp)
+soln
+soln.x
+# array([ 3.1558461 , -2.05251577, -3.97153374,  2.20098169,  1.12798587])
+print("Optimized log likelihood: {0}".format(opt_gp.log_likelihood(y)))
+# 12.442495797758298
+## similar to result above, not approx because of exponents/logarithms. 
+=#
