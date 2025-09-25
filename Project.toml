@@ -1,7 +1,8 @@
-name = "cel2"
+name = "Celerite2"
 uuid = "d7c4d21e-f632-4ce8-8dec-1f68bf4f0d36"
 authors = ["[bmlindor] <blindor@uw.edu>"]
 version = "0.1.0"
+version = "1.6.7"
 
 [deps]
 AbstractGPs = "99985d1d-32ba-4be9-9821-2ec096f28918"
