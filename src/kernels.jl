@@ -217,14 +217,14 @@
 
 ## Properties ##
 	# Allow keyword arguments
-	ComplexKernel(; a::Float64=1.0,b::Float64=1.0,c::Float64=1.0,d::Float64=1.0)=ComplexKernel(log(a),log(b),log(c),log(d))
-	RealKernel(; a::Real=1.0,c::Real=1.0)=RealKernel(log(a),log(c))
 	ComplexKernel(; log_a::Float64=0.0,log_b::Float64=0.0,log_c::Float64=0.0,log_d::Float64=0.0)=ComplexKernel(log_a,log_b,log_c,log_d)
 	RealKernel(; log_a::Real=0.0,log_c::Real=0.0)=RealKernel(log_a,log_c)
-	SHOKernel(;S0::Float64=1.0,Q::Float64=1.0,ω0::Float64=1.0)=SHOKernel(log(S0),log(Q),log(ω0)) 
 	SHOKernel(;log_S0::Float64=1.0,log_Q::Float64=1.0,log_ω0::Float64=1.0)=SHOKernel(log_S0,log_Q,log_ω0)
 	RotationKernel(;σ::Float64=1.5,period::Float64=3.45,Q0::Float64=1.3,dQ::Float64=1.05,frac::Float64=0.5) = RotationKernel(σ,period,Q0,dQ,frac)	
-	RotationKernel(;σ::Float64=1.5,period::Float64=3.45,log_Q0::Float64=1.3,log_dQ::Float64=1.05,frac::Float64=0.5) = RotationKernel(σ,period,exp(log_Q0),exp(log_dQ),frac)	
+	# ComplexKernel(; a::Float64=1.0,b::Float64=1.0,c::Float64=1.0,d::Float64=1.0)=ComplexKernel(log(a),log(b),log(c),log(d))
+	# RealKernel(; a::Real=1.0,c::Real=1.0)=RealKernel(log(a),log(c))
+	# SHOKernel(;S0::Float64=1.0,Q::Float64=1.0,ω0::Float64=1.0)=SHOKernel(log(S0),log(Q),log(ω0)) 
+	# RotationKernel(;σ::Float64=1.5,period::Float64=3.45,log_Q0::Float64=1.3,log_dQ::Float64=1.05,frac::Float64=0.5) = RotationKernel(σ,period,exp(log_Q0),exp(log_dQ),frac)	
 
 	# Overload size to length of components
 	Base.size(k::ComplexKernel) = 4

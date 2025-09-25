@@ -87,7 +87,7 @@ function _factorize!(D::Vector{Float64}, U::Array{Float64, 2},W::Array{Float64, 
         if Dn <= 0
             @warn "Diagonal is not positive definite." 
             # This should only happen during parameter inference.
-            Dn = D[n-1]
+            return 0
             # break?
             #  apply sturm's theorem ?
         end

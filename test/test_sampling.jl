@@ -28,11 +28,11 @@ using Turing, LogExpFunctions
     gp = Celerite2.CeleriteGP(kernel,x,yerr.+exp(logjitter),μ)
 
     # want positive definite D vector, maybe need to edit core.jl to assert this 
-    if any(mean(gp) .< 0.0)
-        Turing.@addlogprob! -Inf
-    else
+    # if any(mean(gp) .< 0.0)
+        # Turing.@addlogprob! -Inf
+    # else
         Turing.@addlogprob! logpdf(gp,y) 
-    end
+    # end
     # Observations (i.e. dependent variable)    
     # gps ~ product_distribution(gp) #stackoverflow error?
     # y ~ marginals(gp)

@@ -84,8 +84,8 @@
         xs .+= m 
         return xs
     end
-# Wrappers to compute invKy and covariance matrix.
-    # Compute α = K-¹ y 
+
+# Compute invKy, or α = K-¹ y 
     function apply_inverse(gp::CeleriteGP,y)
         if gp.D == zeros(length(gp.x)) || size(gp.D) != size(gp.x)
             throw("CeleriteGP must be computed for sorted input coordinates first.")
@@ -93,40 +93,54 @@
       @assert(size(y,1)==length(gp.x))
         return _solve!(gp.D, gp.U, gp.W, gp.phi, y)
     end 
-    # Compute full covariance matrix (without the noise)
-    function _k_matrix(gp::CeleriteGP,xs...)
-        # Can provide autocorrelation or cross-correlation
-        @assert length(xs)<=2 
-        local x1::Array
-        local x2::Array
-        if length(xs) >= 1
-            x1 = xs[1]
-        else
-            if gp.D == zeros(length(gp.x)) || size(gp.D) != size(gp.x)
-            throw("CeleriteGP must be computed for sorted input coordinates first.")
-            end
-            x1 = gp.x
-        end
-        if length(xs) == 2
-            x2 = xs[2]
-        else
-            x2 = x1
-        end
-        if size(x1, 2) != 1 || size(x2, 2) != 1
-            throw("Inputs must be 1D.")
-        end
-        τ = broadcast(-, reshape(x1, length(x1), 1), reshape(x2, 1, length(x2)))
-        k = _get_value(gp.kernel, τ)
-        return k
-    end
 
+# Reconstruct cholesky factor from low-rank decomposition.
+    function _reconstruct_K(gp::CeleriteGP,x)
+        if gp.D == zeros(length(gp.x)) || size(gp.D) != size(gp.x)
+            throw("CeleriteGP must be computed for sorted input coordinates first.")
+        end
+        ar, cr, ac, bc, cc, dc = _get_coefficients(gp.kernel)
+        Jr = length(ar);    Jc = length(ac)
+        N = length(x)
+        @assert N == length(gp.x)
+        J,N = size(gp.U)
+        # Reconstruct cholesky factor from low-rank decomposition:
+        Umat = copy(gp.U)
+        Wmat = copy(gp.W)
+        for n=1:N
+          if Jr > 0
+            for j=1:Jr
+              Umat[j,n] *= exp(-cc[j]*x[n])
+              Wmat[j,n] *= exp( cc[j]*x[n])
+            end
+          end
+          if (J-Jr) > 0
+            for j=1:Jc
+              Umat[Jr+2j-1,n] *= exp(-cc[j]*x[n])
+              Umat[Jr+2j  ,n] *= exp(-cc[j]*x[n])
+              Wmat[Jr+2j-1,n] *= exp( cc[j]*x[n])
+              Wmat[Jr+2j  ,n] *= exp( cc[j]*x[n])
+            end
+          end
+        end
+        L = tril(*(Umat', Wmat), -1)
+        # Add identity matrix, then multipy by D^{1/2}:
+        for i=1:N
+          L[i,i] = 1.0
+          for j=1:N
+            L[i,j] *=sqrt(gp.D[j])
+          end
+        end
+        K = L*L'
+        return K
+    end
 # Compute covariance, variance, and mean of the prior process.
     function Statistics.mean(gp::CeleriteGP)
         typeof(gp.mean) == ZeroMean{Float64} ? mu = zeros(length(gp.x)) : mu = fill(gp.mean.c, length(gp.x))
         return mu
     end
-    Statistics.var(gp::CeleriteGP) = diag(gp.Σy) # MIGHT BE INCORRECT
-    Statistics.cov(gp::CeleriteGP) = _reconstruct_K(gp,gp.x) #+ gp.Σy
+    Statistics.var(gp::CeleriteGP) = diag(_reconstruct_K(gp,gp.x))#diag(gp.Σy .+ _reconstruct_K(gp,gp.x)) # MIGHT BE INCORRECT
+    Statistics.cov(gp::CeleriteGP) = _reconstruct_K(gp,gp.x) 
 
 # Predict future values y*  based on a 'training set' of values y at times x.
     function predict(k::CeleriteKernel,x_train,y_train,x,α)
@@ -243,7 +257,33 @@
         y_train = gp_posterior.data.δ + mean(prior_gp)
         return predict(prior_gp.kernel,x_train,y_train,x,gp_posterior.data.α)
     end
-
+# WARNING: Do not use the methods below with large datasets since _k_matrix computes the full covariance.
+    # Compute full covariance matrix (without the noise)
+    function _k_matrix(gp::CeleriteGP,xs...)
+        # Can provide autocorrelation or cross-correlation
+        @assert length(xs)<=2 
+        local x1::Array
+        local x2::Array
+        if length(xs) >= 1
+            x1 = xs[1]
+        else
+            if gp.D == zeros(length(gp.x)) || size(gp.D) != size(gp.x)
+            throw("CeleriteGP must be computed for sorted input coordinates first.")
+            end
+            x1 = gp.x
+        end
+        if length(xs) == 2
+            x2 = xs[2]
+        else
+            x2 = x1
+        end
+        if size(x1, 2) != 1 || size(x2, 2) != 1
+            throw("Inputs must be 1D.")
+        end
+        τ = broadcast(-, reshape(x1, length(x1), 1), reshape(x2, 1, length(x2)))
+        k = _get_value(gp.kernel, τ)
+        return k
+    end
     function StatsBase.mean_and_var(gp::CeleriteGP,y_train::AbstractVector,x::AbstractVector)
         alpha = apply_inverse(gp,y_train)
         Kxs = _k_matrix(gp,x,gp.x)
@@ -257,8 +297,6 @@
         σ² =  _get_value(gp.kernel,[0.0])[1] .+ v
         return mu, σ²[1,:]
     end
-
-    #   StatsBase.mean_and_cov(gp::CeleriteGP)= (mean(gp),cov(gp))
     function StatsBase.mean_and_cov(gp::CeleriteGP,y_train::AbstractVector,x::AbstractVector)
         alpha = apply_inverse(gp,y_train)
         Kxs = _k_matrix(gp,x,gp.x)
@@ -270,45 +308,4 @@
         cov -= Kxs .* apply_inverse(gp,KxsT) 
         # # BL: error  "must have singleton at dim 2"  exists in celerite 
         return mu, cov
-    end
-
-# Reconstruct cholesky factor from low-rank decomposition.
-    function _reconstruct_K(gp::CeleriteGP,x)
-        if gp.D == zeros(length(gp.x)) || size(gp.D) != size(gp.x)
-            throw("CeleriteGP must be computed for sorted input coordinates first.")
-        end
-        ar, cr, ac, bc, cc, dc = _get_coefficients(gp.kernel)
-        Jr = length(ar);    Jc = length(ac)
-        N = length(x)
-        @assert N == length(gp.x)
-        J = Jr + 2*Jc
-        # Reconstruct cholesky factor from low-rank decomposition:
-        Umat = copy(gp.U)
-        Wmat = copy(gp.W)
-        for n=1:N
-          if Jr > 0
-            for j=1:Jr
-              Umat[j,n] *= exp(-cc[j]*x[n])
-              Wmat[j,n] *= exp( cc[j]*x[n])
-            end
-          end
-          if (J-Jr) > 0
-            for j=1:Jc
-              Umat[Jr+2j-1,n] *= exp(-cc[j]*x[n])
-              Umat[Jr+2j  ,n] *= exp(-cc[j]*x[n])
-              Wmat[Jr+2j-1,n] *= exp( cc[j]*x[n])
-              Wmat[Jr+2j  ,n] *= exp( cc[j]*x[n])
-            end
-          end
-        end
-        L = tril(*(Umat', Wmat), -1)
-        # Add identity matrix, then multipy by D^{1/2}:
-        for i=1:N
-          L[i,i] = 1.0
-          for j=1:N
-            L[i,j] *=sqrt(gp.D[j])
-          end
-        end
-        K = L*L'
-        return K
     end
