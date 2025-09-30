@@ -17,8 +17,8 @@
 	celerite.compute_ldlt!(orig_gp, x, yerr) 
 
 	@test isapprox(gp.D, orig_gp.D)
-	@test isapprox(gp.W,orig_gp.W)
-	@test isapprox(gp.U,orig_gp.up)
+	@test isapprox(gp.W, orig_gp.W)
+	@test isapprox(gp.U, orig_gp.up)
 	@test isapprox(gp.phi,orig_gp.phi)
 
 	# apply the inverse of the covariance matrix to a vector 
