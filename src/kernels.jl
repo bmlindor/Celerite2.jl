@@ -5,11 +5,6 @@
 		K(τ) = σ² × δ + ∑_j k_j(τ)
 
 	where τ = |t_n - t_m| is the input, and δ is the Kronecker delta.
-	A general Celerite kernel is : 
-		k_j(τ) = [a_j × cos{-d_j × τ}]+ [b_j × sin{-d_j × τ}] × e^{-c_j × τ} 
-
-	A real kernel (where b_j=0 and d_j=0) is :
-		k_j(τ) = a_j × exp(-c_j × τ)
 	""" 
 ## Types and structures
 	struct ComplexKernel{T} <: CeleriteKernel
@@ -19,7 +14,12 @@
 		log_c::Vector{T}
 		log_d::Vector{T}
 	end
+	"""
+		Complex(log_a,log_b,log_c,log_d)
 
+	Create a complex CeleriteKernel with a covariance function given by 
+		k_j(τ) = [a_j × cos{-d_j × τ}]+ [b_j × sin{-d_j × τ}] × e^{-c_j × τ} 
+	"""
 	function ComplexKernel(log_a::T,log_b::T,log_c::T,log_d::T) where T<:Float64
 		return ComplexKernel([log_a],[log_b],[log_c],[log_d])
 	end
@@ -33,7 +33,12 @@
 		log_a::Vector{T}
 		log_c::Vector{T}
 	end
-
+	"""
+		RealKernel(log_a,log_c)
+	
+	Create a real CeleriteKernel (where b_j=0 and d_j=0) with a covariance function given by
+		k_j(τ) = a_j × exp(-c_j × τ)
+	"""
 	function RealKernel(log_a::T,log_c::T) where T<:Float64
 		return RealKernel([log_a],[log_c])
 	end
@@ -48,7 +53,11 @@
 		log_Q::Vector{T} 	# oscillator quality factor
 		log_ω0::Vector{T} 	# frequency of undamped oscillator
 	end
-
+	"""
+		SHOKernel(log_S,log_Q,log_ω0)
+	
+	Create a simple harmonic oscillator CeleriteKernel for modeling stellar time variability.
+	"""
 	function SHOKernel(log_S0::T,log_Q::T,log_ω0::T) where T<:Float64
 		return SHOKernel([log_S0],[log_Q],[log_ω0])
 	end
@@ -80,7 +89,11 @@
 		c = 0.5 * ω0 / Q
 		return (zeros(0), zeros(0), [a], [a / f], [c], [c * f])
 	end
+	"""
+		RotationKernel(σ,period,Q0,dQ,frac)
 
+	Create a rotation CeleriteKernel for modeling stellar rotation.
+	"""
 	struct RotationKernel{T} <: CeleriteKernel
 		# mixture of two SHO kernels that models stellar rotation
 		σ::Vector{T} 		# standard deviation of the process

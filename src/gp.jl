@@ -13,6 +13,13 @@
         U::Array{Float64}
         ϕ::Array{Float64}
     end
+    export CeleriteGP
+    """
+        CeleriteGP(k::Tk,x::AbstractVector, σ::AbstractVector) where Tk <: CeleriteKernel
+
+    Create a Celerite GP with a CeleriteKernel `k`, input coordinates `x`, and observation errors `σ`.
+    Optionally, provide a value `μ` to create a constant mean function for the GP.
+    """
 
     function CeleriteGP(k::Tk,x::AbstractVector, σ::AbstractVector) where Tk <: CeleriteKernel
         # Get the kernel coefficients
@@ -40,7 +47,11 @@
             zeros(N),zeros(J,N),zeros(J,N),zeros(J,N-1))
     end 
     Base.length(gp::CeleriteGP) = length(gp.x)
-# Compute the marginalized likelihood of the CeleriteGP 
+    """
+        logpdf(gp,y)
+
+    Compute the marginalized likelihood of the CeleriteGP `gp` at observed `y` data.
+    """
     function Distributions.logpdf(gp::CeleriteGP,y::Vector{Float64})
         if gp.D == Float64[0.0]
             throw("CeleriteGP must be updated first.")
@@ -62,6 +73,11 @@
         logdetK = _factorize!(gp.D, gp.U, gp.W, gp.ϕ, coeffs , collect(gp.x), gp.Σy)
         return logdetK
     end
+    """
+        rand(gp,N)
+
+    Sample a vector of `N` values from a CeleriteGP `gp`
+    """
 # Sample from CeleriteGP prior where q is vector of draws from Normal(0,1)
     function _sample_gp(gp::CeleriteGP,q::AbstractVector) 
         if gp.D == zeros(length(gp.x)) 
@@ -230,7 +246,11 @@
         prior::Tprior
         data::Tdata
     end
+    """
+        posterior(gp,y)
 
+    Create a posterior CeleriteGP trained on observations `y`` 
+    """
     function AbstractGPs.posterior(gp::CeleriteGP,y::AbstractVector)
         mu = mean(gp)
         δ = y - mu
@@ -250,7 +270,11 @@
             zeros(N),zeros(J,N),zeros(J,N),zeros(J,N-1))
         return gp
     end
+    """
+        mean(gp_posterior,x)
 
+    Efficiently compute predicted observations from a posterior gp for values of `x`. 
+    """
     function Statistics.mean(gp_posterior::PosteriorCeleriteGP,x::AbstractVector)
         prior_gp = gp_posterior.prior
         x_train = gp_posterior.data.x
