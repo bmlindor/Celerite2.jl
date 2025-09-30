@@ -2,14 +2,14 @@ module Celerite2
 
 using Random, Base, LinearAlgebra, Statistics, StatsBase
 using KernelFunctions, Distributions, AbstractGPs
-using OMEinsum,Polynomials,ForwardDiff
+using OMEinsum, Polynomials, ForwardDiff
 
 import AbstractGPs: MeanFunction 
 import Base.+, Base.*, Base.length, Base.product
 
 export RealKernel, ComplexKernel, SHOKernel
 export RotationKernel, CeleriteKernelSum, CeleriteKernelProduct
-export CeleriteGP
+export AbstractCeleriteGP, CeleriteGP, PosteriorCeleriteGP
 export get_kernel, set_kernel!
 export make_test_data
 

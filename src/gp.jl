@@ -11,7 +11,7 @@
         D::Vector{Float64}
         W::Array{Float64}
         U::Array{Float64}
-        phi::Array{Float64}
+        ϕ::Array{Float64}
     end
 
     function CeleriteGP(k::Tk,x::AbstractVector, σ::AbstractVector) where Tk <: CeleriteKernel
@@ -51,15 +51,15 @@
         y0 = copy(y)
         coeffs = _get_coefficients(gp.kernel)
         # Do cholesky decomposition and apply the inverse
-        logdetK = _factorize!(gp.D, gp.U, gp.W, gp.phi, coeffs , collect(gp.x), Σy)
-        invKy =  _solve!(gp.D, gp.U, gp.W, gp.phi, y0)
+        logdetK = _factorize!(gp.D, gp.U, gp.W, gp.ϕ, coeffs , collect(gp.x), Σy)
+        invKy =  _solve!(gp.D, gp.U, gp.W, gp.ϕ, y0)
         logL =  -0.5 *((logdetK + N * log(2*pi)) + (y' * invKy))
         return logL
     end
 # Call the choleksy function to factorize & update structure
     function  Distributions.logdetcov(gp::CeleriteGP)
         coeffs = _get_coefficients(gp.kernel)
-        logdetK = _factorize!(gp.D, gp.U, gp.W, gp.phi, coeffs , collect(gp.x), gp.Σy)
+        logdetK = _factorize!(gp.D, gp.U, gp.W, gp.ϕ, coeffs , collect(gp.x), gp.Σy)
         return logdetK
     end
 # Sample from CeleriteGP prior where q is vector of draws from Normal(0,1)
@@ -69,7 +69,7 @@
         elseif size(gp.D) != size(gp.x)
             throw("CeleriteGP must be computed for sorted input coordinates first.")
         end
-        return _simulate_gp(gp.D,gp.U,gp.W,gp.phi,q)
+        return _simulate_gp(gp.D,gp.U,gp.W,gp.ϕ,q)
     end
     Random.rand(rng::AbstractRNG,gp::CeleriteGP) = _sample_gp(gp,randn(rng,length(gp.x)))
     Random.rand(gp::CeleriteGP,N::Int) = _sample_gp(gp,randn(Random.GLOBAL_RNG,N))
@@ -91,7 +91,7 @@
             throw("CeleriteGP must be computed for sorted input coordinates first.")
         end
       @assert(size(y,1)==length(gp.x))
-        return _solve!(gp.D, gp.U, gp.W, gp.phi, y)
+        return _solve!(gp.D, gp.U, gp.W, gp.ϕ, y)
     end 
 
 # Reconstruct cholesky factor from low-rank decomposition.
