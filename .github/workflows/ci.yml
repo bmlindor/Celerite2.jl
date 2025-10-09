@@ -19,6 +19,6 @@ jobs:
       with:
         version: '1.6'
     - name: Install Dependencies
-      run: julia -e 'using Pkg; Pkg.instantiate()'
+      run: julia -e 'using Pkg; Pkg.instantiate("Celerite2")'
     - name: Run Tests
       run: julia -e 'using Pkg; Pkg.test("Celerite2")'
