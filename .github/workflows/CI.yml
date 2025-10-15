@@ -31,4 +31,6 @@ jobs:
     - name: Install Dependencies
       run: julia -e 'using Pkg; Pkg.instantiate()'
     - name: Run Tests
-      run: julia -e 'using Pkg; Pkg.test()'
+      run: | 
+        cd $GITHUB_WORKSPACE
+        julia -e 'using Pkg; Pkg.test("Celerite2")'
