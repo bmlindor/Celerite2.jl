@@ -7,7 +7,7 @@
   """
   function _psd(kernel::CeleriteKernel, ω::AbstractVector)
   	  	# Compute the value of the power spectral density.
-        ar, cr, ac, bc, cc, dc = Celerite2._get_coefficients(kernel)
+        ar, cr, ac, bc, cc, dc = _get_coefficients(kernel)
         ω² = ω.^2 
         ω⁴ = ω².^2 
         p = zeros(length(ω²))

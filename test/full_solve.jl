@@ -210,7 +210,13 @@ x0 = init_vector[mask]
 		# correct value but dont want to do inverse of K cuz it's expensive
         mu =  diag(kernelmatrix(gp.kernel,x,gp.x) * inv(kernelmatrix(gp.kernel,x)) + gp.Σy) .* (y )#.- mean(gp.x))
         return mu
+        end
+  function full_Math_var(gp,x)
+        B = kernelmatrix(gp.kernel,x,x)  - kernelmatrix(gp.kernel,x,gp.x) * inv(kernelmatrix(gp.kernel,gp.x)) * kernelmatrix(gp.kernel,x,gp.x)'
+        return B
     end
+
+    full_var = var(diag(full_Math_var(gp,collect(true_x))))
     function full_Math_cov(gp,x)
         C = kernelmatrix(gp.kernel,x,x)  - kernelmatrix(gp.kernel,x,gp.x) * inv(kernelmatrix(gp.kernel,gp.x) + gp.Σy) * kernelmatrix(gp.kernel,gp.x,x)
         return C
@@ -238,3 +244,134 @@ x0 = init_vector[mask]
     	covs = Kss - K' * K_inv * K_s
     	return mus, diag(covs + gp.Σy) 
     end
+    
+#=
+function matmul(x,diag,y)
+    if size(x,1) != size(y,1)
+        throw("Dimension mismatch.")
+    end
+end
+function _mat_mult_lower!(A::Vector{Float64},U::Array{Float64, 2},V::Array{Float64, 2},phi::Array{Float64,2},z::AbstractVector)
+    J,N = size(U)
+    f = zeros(Float64,J)
+    for n =2:N
+      f .= phi[:,n-1] .* (f .+ V[:,n-1] .* z[n-1])
+      y[n] += dot(U[:,n-1],f)
+    end
+    return y
+end
+
+function _mat_mult_upper!(A::Vector{Float64},U::Array{Float64, 2},V::Array{Float64, 2},phi::Array{Float64,2},z::AbstractVector,y::AbstractVector)
+    f = zeros(Float64,J)
+    for n = N-1:-1:1
+      f .= phi[:,n] .* (f .+  U[:,n] .* z[n+1])
+      y[n] += dot(V[:,n],f)
+    end
+    return y
+end
+function _do_mat_mult!(A,U,V,phi,z)
+    y = A .* z
+    z = _mat_mult_upper!(U,V,phi,z,y)
+    y = _mat_mult_lower(A,U,V,phi,z,y)   
+end
+        J,N = size(gp.U)
+      z = zeros(Float64,N)
+    z[1] = y[1]
+      f = zeros(Float64,J)
+      for n =2:N
+        f .= gp.phi[:,n-1] .* (f .+ gp.W[:,n-1] .* z[n-1])
+        z[n] = (y[n] - dot(gp.U[:,n], f))
+      end
+    # The following solves L^T.z = y for z:
+      y = copy(z)
+      fill!(z, zero(Float64))
+      z[N] = y[N] / gp.D[N]
+      fill!(f, zero(Float64))
+      for n=N-1:-1:1
+        f .= gp.phi[:,n] .* (f .+  gp.U[:,n+1] .* z[n+1])
+        z[n] = y[n]/ gp.D[n] - dot(gp.W[:,n], f)
+      end
+      return z
+function _solve_lower(U::Array{Float64, 2},W::Array{Float64, 2},phi::Array{Float64,2},y::Vector{Float64})
+    # Solve lower inverse of L.z = y for z:
+    J,N = size(U)
+    z = zeros(Float64,N)
+    z[1] = y[1]
+    f=zeros(Float64,J)
+    @inbounds for n in 2:N
+        f .= phi[:,n-1] .* (f .+ W[:,n-1] .* z[n-1])
+        z[n] = (y[n] - dot(U[:,n],f))
+    end
+    return z
+end
+
+function _solve_upper!(U::Array{Float64, 2},W::Array{Float64, 2},phi::Array{Float64,2},z::Vector{Float64})
+    # Solve upper inverse of L' .z = y for z:
+    J,N = size(U)
+    f=zeros(Float64,J)
+    @inbounds for n = N-1:-1:1
+        f .= phi[:,n] .* (f .+ U[:,n+1] .* z[n+1])
+        z[n] -=  dot(W[:,n],f)
+    end
+end
+function _do_solve!(U,W,phi,y)
+    z = _solve_lower(U,W,phi,y)   
+    z ./= D 
+    z = _solve_upper!(U,W,phi,z)
+end
+=#
+
+#=
+function _factor_rewrite!(D::Vector{Float64}, U,W,phi)
+    # BL:  Rewrite of cholesky method, assuming that _init_matrices is called first.
+    # @warn "Unstable?"
+    J,N=size(U)
+    W[:,1] ./= D[1] 
+
+    # Allocate array for recursive computation of low-rank matrices:   
+    S = zeros(J, J);
+    Sk=0.0 ;  phij = 0.0 ; Dn = 0.0 ; Uk=0.0 ;  Uj = 0.0 ; Wj=0.0; tmp=0.0
+    @inbounds for n in 2:N # what is diff b/w this loop form and for n in 2:N
+        # Update S
+        for j in 1:J
+            phij=phi[j,n-1]
+            Wj=W[j,n-1]
+            for k in 1:j
+                S[k,j] +=( D[n-1] .* Wj * W[k,n-1])
+                S[k,j] = phij * phi[k,n-1] * S[k,j]
+                # S[j,k] =  phij * phi[n-1,k] * (S[j,k] .+ (D[n-1] * Wj * W[n-1,k]))
+            end 
+        end
+        # Update W and D
+        # zero_out!(Dn)
+        Dn = 0.0
+        for j in 1:J
+            Uj = U[j,n] 
+            Wj = W[j,n]
+            for k = 1:j-1
+                Sk = S[k,j] ; 
+                Uk = U[k,n]
+                tmp = Uj * Sk
+                Dn +=  Uk * tmp 
+                Wj -= Uk * Sk 
+                W[k,n] -= tmp
+            end
+            tmp = Uj * S[j,j]
+            D[n] +=  Uj * tmp
+            W[j,n] = Wj - tmp
+        end
+       Dn = D[n] 
+       D[n] = Dn
+       for j in 1:J
+            W[j,n] /= Dn
+       end
+    end
+
+    logdetK = 0.0
+    for n in 1:N
+    logdetK += log(D[n])
+    end
+    return logdetK
+end
+
+=#

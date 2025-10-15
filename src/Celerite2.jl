@@ -7,7 +7,7 @@ using OMEinsum, Polynomials, ForwardDiff
 import AbstractGPs: MeanFunction 
 import Base.+, Base.*, Base.length, Base.product
 
-export RealKernel, ComplexKernel, SHOKernel
+export RealKernel, ComplexKernel, SHOKernel, CeleriteKernel
 export RotationKernel, CeleriteKernelSum, CeleriteKernelProduct
 export AbstractCeleriteGP, CeleriteGP, PosteriorCeleriteGP
 export get_kernel, set_kernel!
