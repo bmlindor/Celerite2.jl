@@ -1,4 +1,4 @@
-function _factorize!(D::Vector{Float64}, U::Array{Float64, 2},W::Array{Float64, 2},phi::Array{Float64,2},coeffs::NTuple{6,Vector{Float64}}, x::Vector{Float64}, Σy::Diagonal{Float64})
+function _factorize!(D::Vector{Float64}, U::Array{Float64, 2},W::Array{Float64, 2},ϕ::Array{Float64,2},coeffs::NTuple{6,Vector{Float64}}, x::Vector{Float64}, Σy::Diagonal{Float64})
     # Do cholesky decomposition.
     ar, cr, ac, bc, cc, dc=coeffs
     N = size(x,1)
@@ -27,7 +27,7 @@ function _factorize!(D::Vector{Float64}, U::Array{Float64, 2},W::Array{Float64, 
     end
     # Allocate temporary variables:
     dcd = 0.0 ; dsd = 0.0 ; cdj= 0.0 ; 
-    Uj = 0.0 ; Uk = 0.0 ; Wj = 0.0 ;phij = 0.0 ; 
+    Uj = 0.0 ; Uk = 0.0 ; Wj = 0.0 ;ϕj = 0.0 ; 
     Dn = 0.0 ; Sk = 0.0 ;  ; tmp = 0.0 ;
 
     @inbounds for n in 2:N
@@ -36,14 +36,14 @@ function _factorize!(D::Vector{Float64}, U::Array{Float64, 2},W::Array{Float64, 
         dx = tn - x[n-1]
         # Compute the real and complex components of Ũ, W̃ , and ϕ :
         for j in 1:Jr
-            phi[j,n-1] = exp(-cr[j] * dx)
+            ϕ[j,n-1] = exp(-cr[j] * dx)
             U[j,n] = ar[j]
             W[j,n] = 1.0
         end
         for j in 1:Jc
             expdx = exp(-cc[j] * dx)
-            phi[Jr+2*j-1,   n-1] = expdx
-            phi[Jr+2*j,     n-1] = expdx
+            ϕ[Jr+2*j-1,   n-1] = expdx
+            ϕ[Jr+2*j,     n-1] = expdx
             cdj = cosdt[j]
             dcd = cos(dc[j] * dx) ; dsd = sin(dc[j] * dx) ;
             cosdt[j] = cdj * dcd - sindt[j]*dsd
@@ -57,10 +57,10 @@ function _factorize!(D::Vector{Float64}, U::Array{Float64, 2},W::Array{Float64, 
         # Compute S via recursion
         Dn = D[n-1]
         for j in 1:J
-            phij= phi[j,n-1]
+            ϕj= ϕ[j,n-1]
             Wj = W[j,n-1]
             for k in 1:j
-                S[k,j] =  phij * phi[k,n-1] * (S[k,j] + (Dn * Wj * W[k,n-1]))
+                S[k,j] =  ϕj * ϕ[k,n-1] * (S[k,j] + (Dn * Wj * W[k,n-1]))
             end
         end
         # Update W and D
@@ -101,7 +101,7 @@ function _factorize!(D::Vector{Float64}, U::Array{Float64, 2},W::Array{Float64, 
     return logdetK 
 end
 
-function _solve!(D::Vector{Float64}, U::Array{Float64, 2},W::Array{Float64, 2},phi::Array{Float64,2},y::AbstractVecOrMat)
+function _solve!(D::Vector{Float64}, U::Array{Float64, 2},W::Array{Float64, 2},ϕ::Array{Float64,2},y::AbstractVecOrMat)
     # Solves K.b=y for b with LDLT decomposition by applying the inverse
     J,N = size(U)
     z = zeros(Float64,N)
@@ -109,21 +109,21 @@ function _solve!(D::Vector{Float64}, U::Array{Float64, 2},W::Array{Float64, 2},p
     f=zeros(Float64,J)
     # Solve L.z = y for z:
     @inbounds for n in 2:N
-        f .= phi[:,n-1] .* (f .+ W[:,n-1] .* z[n-1])
+        f .= ϕ[:,n-1] .* (f .+ W[:,n-1] .* z[n-1])
         z[n] = (y[n] - dot(U[:,n],f))
     end
     # Solve L' .z = y for z:
     z ./= D
     fill!(f,0.0)
     @inbounds for n = N-1:-1:1
-        f .= phi[:,n] .* (f .+ U[:,n+1] .* z[n+1])
+        f .= ϕ[:,n] .* (f .+ U[:,n+1] .* z[n+1])
         z[n] -=  dot(W[:,n],f)
     end
     # Returns solution of L.L' z = y for z:
     return z
 end
 
-function _simulate_gp(D::Vector{Float64},U::Array{Float64, 2},W::Array{Float64, 2},phi::Array{Float64,2},q::Vector)
+function _simulate_gp(D::Vector{Float64},U::Array{Float64, 2},W::Array{Float64, 2},ϕ::Array{Float64,2},q::Vector)
     J,N = size(U)
     y=zeros(Float64,N)
     f=zeros(Float64,J)
@@ -131,7 +131,7 @@ function _simulate_gp(D::Vector{Float64},U::Array{Float64, 2},W::Array{Float64, 
     tmp = sqrt(D[1]) * q[1]
     y[1] = tmp
     @inbounds for n=2:N
-        f .= phi[:,n-1] .* (f .+ W[:,n-1] .* tmp)
+        f .= ϕ[:,n-1] .* (f .+ W[:,n-1] .* tmp)
         tmp = sqrt(D[n]) * q[n] # error where it's attempting to access q[N+1]
         y[n] = tmp + dot( U[:,n],f)
     end
@@ -139,7 +139,7 @@ function _simulate_gp(D::Vector{Float64},U::Array{Float64, 2},W::Array{Float64, 
     return y
 end
 # BL: what if q is matrix?
-function _simulate_gp(D::Vector{Float64},U::Array{Float64, 2},W::Array{Float64, 2},phi::Array{Float64,2},q::AbstractArray)
+function _simulate_gp(D::Vector{Float64},U::Array{Float64, 2},W::Array{Float64, 2},ϕ::Array{Float64,2},q::AbstractArray)
     J,N = size(U)
     nrhs = size(q, 2)
     y=zeros(Float64,N)
@@ -148,7 +148,7 @@ function _simulate_gp(D::Vector{Float64},U::Array{Float64, 2},W::Array{Float64, 
     tmp = sqrt(D[1]) * q[:,1]
     y[:,1] = tmp
     @inbounds for n=2:N
-        f .= phi[:,n-1] .* (f .+ W[:,n-1] .* tmp)
+        f .= ϕ[:,n-1] .* (f .+ W[:,n-1] .* tmp)
         tmp = sqrt(D[n]) .* q[:,n] 
         y[:,n] = tmp +  dot(U[:,n],f)
     end
@@ -173,29 +173,29 @@ function _init_matrices(kernel::Tk,x::AbstractVector,σ::AbstractVector) where T
     cosdt = cos.(trig_arg)
     sindt = sin.(trig_arg) 
     # Compute the real and complex components of Ũ,Ṽ, and ϕ :
-    phic = exp.(-dx * cc')
+    ϕc = exp.(-dx * cc')
     U = cat(    (ones(N) * ar')', 
                 (cosdt .* ac' + sindt .* bc')' ,
                 (sindt .* ac' - cosdt .* bc')' ,dims=1)
     V = cat(    ones(N,Jr)' ,  cosdt'  , sindt' ,dims=1)
-    phi = cat(  (ones(N-1) .* exp.( -dx * cr'))', phic',phic',dims=1)
-    return U, V, phi, A
+    ϕ = cat(  (ones(N-1) .* exp.( -dx * cr'))', ϕc',ϕc',dims=1)
+    return U, V, ϕ, A
 end
 
-function _mat_mult(A::Vector{Float64},U::Array{Float64, 2},V::Array{Float64, 2},phi::Array{Float64,2},z::AbstractVector)
+function _mat_mult(A::Vector{Float64},U::Array{Float64, 2},V::Array{Float64, 2},ϕ::Array{Float64,2},z::AbstractVector)
     # Compute y =  K . z 
     J,N = size(U)
     y = A .* z
     # Sweep upwards in n:
     f = zeros(Float64,J)
     for n =2:N
-      f .= phi[:,n-1] .* (f .+ V[:,n-1] .* z[n-1])
+      f .= ϕ[:,n-1] .* (f .+ V[:,n-1] .* z[n-1])
       y[n] += dot(U[:,n-1],f)
     end
     # Sweep downwards in n:
     fill!(f, 0)
     for n = N-1:-1:1
-      f .= phi[:,n] .* (f .+  U[:,n] .* z[n+1])
+      f .= ϕ[:,n] .* (f .+  U[:,n] .* z[n+1])
       y[n] += dot(V[:,n],f)
     end
     return y
