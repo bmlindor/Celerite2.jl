@@ -1,5 +1,5 @@
-include("../src/cel2.jl")
-using .Celerite2,Test,KernelFunctions,LinearAlgebra, Profile,Distributions,Optim
+# include("../src/cel2.jl")
+# using .Celerite2,Test,KernelFunctions,LinearAlgebra, Profile,Distributions,Optim
 # include("../../src/celerite.jl")
 # include("../src/DFM_.jl")
 

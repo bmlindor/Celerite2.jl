@@ -1,10 +1,15 @@
 ## Testing
 
-include("../src/Celerite2.jl")
-using Pkg
-using .Celerite2,Random,Statistics,Test,LinearAlgebra,Optim,StatsBase,Distributions,DelimitedFiles
 
-filename = string("../..//Celerite2.jl/test/simulated_gp_data.txt")
+using Celerite2,Random,Statistics,Test,LinearAlgebra,StatsBase
+using Distributions,DelimitedFiles,Optim
+import AbstractGPs: posterior
+import Celerite2: _get_coefficients, _sample_gp
+import Celerite2: predict, apply_inverse, _k_matrix, _reconstruct_K
+import Celerite2: _factorize! , _solve!
+import Celerite2: _init_matrices, _factor_after_init!
+
+filename = string("simulated_gp_data.txt")
 data=readdlm(filename,comments=true)
 x = data[:,1];
 y = data[:,2];
@@ -13,7 +18,8 @@ true_x = data[:,4];
 true_y = data[:,5];
 
 include("test_kernels.jl")
-include("test_gp.jl")
+include("test_opt.jl")
+# include("test_gp.jl")
 #= function comp_gp(μ,variance)
 		clf()
 		ax = subplot(111)

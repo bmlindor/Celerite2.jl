@@ -9,32 +9,32 @@
 	# non periodic component
 	Q = 1.0/sqrt(2.0) ; w0 = 3.0
 	S0 = var(y) ./ (w0 * Q)
-	comp_1=Celerite2.SHOKernel(log(S0),log(Q),log(w0))
+	comp_1=SHOKernel(log(S0),log(Q),log(w0))
 
 	# periodic component
 	Q = 1.0; w0 = 3.0
 	S0 = var(y) ./ (w0 * Q)
-	comp_2=Celerite2.SHOKernel(log(S0),log(Q),log(w0))
+	comp_2=SHOKernel(log(S0),log(Q),log(w0))
 
 	kernel = comp_1 + comp_2
-	gp=Celerite2.CeleriteGP(kernel,x,yerr)
+	gp=CeleriteGP(kernel,x,yerr)
 
 	logL=logpdf(gp,y)
 
 	# println("Difference in logLikelihood: ",orig_logL-logL)
 
 	# Maximize the (log) marginal likelihood wrt. hyperparameters
-	vector = Celerite2.get_kernel(kernel)
+	vector = get_kernel(kernel)
 	mask = ones(Bool,size(kernel))
 	mask[2] = false 	# We don't want to fit the first Q
 
 	function nll(params)
 		vector[mask] = params
 		# build gp prior
-		Celerite2.set_kernel!(gp.kernel,vector)
+		set_kernel!(gp.kernel,vector)
 		# build finite gp
-		gp_trial=Celerite2.CeleriteGP(gp.kernel,x,yerr)
-        coeffs = Celerite2._get_coefficients(gp.kernel)
+		gp_trial=CeleriteGP(gp.kernel,x,yerr)
+        coeffs = _get_coefficients(gp.kernel)
 		# if Celerite2._check_pos_def(coeffs) return -Inf
 		# compute log_marginal likelihood
 		logL_trial=logpdf(gp_trial,y)
@@ -45,7 +45,7 @@
 	res_LBFGS = optimize(nll, vector[mask],Optim.LBFGS())
 	# println("minimized LBFGS results:",res_LBFGS.minimizer)
 	vector[mask] = res_LBFGS.minimizer
-	Celerite2.set_kernel!(gp.kernel,vector)
+	set_kernel!(gp.kernel,vector)
 	@test maximum(abs.(res_LBFGS.minimizer - [ 3.1558461 , -2.05251577, -3.97153374,  2.20098169,  1.12798587])) <= 1e-4
 
 	logL=logpdf(gp,y)
@@ -53,14 +53,14 @@
 	function nll_mean(params)
 		vector_mean[mask_mean] = params
 		# build gp prior
-		Celerite2.set_kernel!(gp.kernel,vector_mean[2:end])
+		set_kernel!(gp.kernel,vector_mean[2:end])
 		# build finite gp
-		gp_trial=Celerite2.CeleriteGP(gp.kernel,x,yerr,vector_mean[1])
+		gp_trial=CeleriteGP(gp.kernel,x,yerr,vector_mean[1])
 		# compute log_marginal likelihood
 		logL_trial=logpdf(gp_trial,y)
 		return -logL_trial
 	end
-	vector_mean = [0.0;Celerite2.get_kernel(kernel)]
+	vector_mean = [0.0;get_kernel(kernel)]
 	mask_mean = ones(Bool,length(vector_mean))
 	mask_mean[3] = false
 	res_mean_LBFGS = optimize(nll_mean, vector_mean[mask_mean],Optim.LBFGS())
@@ -69,16 +69,16 @@
 	# @test isapprox(round.(res_mean_LBFGS.minimizer,sigdigits=5),[ 3.1558461 , -2.05251577, -3.97153374,  2.20098169,  1.12798587])
 
     function full_math(gp::CeleriteGP,y_train::AbstractVector,x_train::AbstractVector,x::AbstractVector)
-        μ = Celerite2._k_matrix(gp,gp.x,x_train)' * inv(Celerite2._k_matrix(gp,gp.x,gp.x)  + gp.Σy)  * (y_train )#.- mean(gp.x)) .+ mean(x)  
-        C = Celerite2._k_matrix(gp,x_train,x_train) - Celerite2._k_matrix(gp,gp.x,x_train)' * (Celerite2._k_matrix(gp,gp.x,gp.x)  + gp.Σy) *  Celerite2._k_matrix(gp,gp.x,x_train)
+        μ = _k_matrix(gp,gp.x,x_train)' * inv(_k_matrix(gp,gp.x,gp.x)  + gp.Σy)  * (y_train )#.- mean(gp.x)) .+ mean(x)  
+        C = _k_matrix(gp,x_train,x_train) - _k_matrix(gp,gp.x,x_train)' * (_k_matrix(gp,gp.x,gp.x)  + gp.Σy) *  _k_matrix(gp,gp.x,x_train)
         σ² =  diag(C)
         return μ,σ² 
     end
 
-	@time "Reconstruct K w/ choleksy" myμ,myvar=Celerite2.mean_and_var(gp,y,true_x)
+	@time "Reconstruct K w/ choleksy" myμ,myvar=mean_and_var(gp,y,true_x)
 	@time "Full matrix inversion" μ_math, var_math = full_math(gp,y,x,true_x)
-	α = Celerite2.apply_inverse(gp,y)
-    @time "Ambikasaran method" μ_rec = Celerite2.predict(gp.kernel,x,y,true_x,α)
+	α = apply_inverse(gp,y)
+    @time "Ambikasaran method" μ_rec = predict(gp.kernel,x,y,true_x,α)
 	@test maximum(abs.(μ_rec .- myμ)) <= 1e-5
 	# @test maximum(abs.(μ_rec .- μ_math)) <= 1e-5
 end

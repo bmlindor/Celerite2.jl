@@ -3,9 +3,9 @@
 	C=Celerite2.ComplexKernel(log(1.0),log(0.6),log(6.0),log(3.0))
 	S=Celerite2.SHOKernel(log(0.1), log(2.0), log(0.5))
 
-	@test Celerite2.get_kernel(R) ==  [log(0.5),  log(1.0)]
-	@test Celerite2.get_kernel(C) ==  [log(1.0),  log(0.6), log(6.0), log(3.0)]
-	@test Celerite2.get_kernel(S) ==  [log(0.1),  log(2.0),log(0.5)]
+	@test get_kernel(R) ==  [log(0.5),  log(1.0)]
+	@test get_kernel(C) ==  [log(1.0),  log(0.6), log(6.0), log(3.0)]
+	@test get_kernel(S) ==  [log(0.1),  log(2.0),log(0.5)]
 	# @test Celerite2._get_coefficients(R) == ([0.5], [1.0], Float64[], Float64[], Float64[], Float64[])
 	# @test Celerite2._get_coefficients(C) == (Float64[], Float64[], [1.0], [0.6], [6.0], [3.0000000000000004])
 
