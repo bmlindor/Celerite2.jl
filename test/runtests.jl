@@ -19,7 +19,7 @@ true_y = data[:,5];
 
 include("test_kernels.jl")
 include("test_opt.jl")
-# include("test_gp.jl")
+include("test_gp.jl")
 #= function comp_gp(μ,variance)
 		clf()
 		ax = subplot(111)
