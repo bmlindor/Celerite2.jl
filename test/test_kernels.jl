@@ -6,8 +6,6 @@
 	@test get_kernel(R) ==  [log(0.5),  log(1.0)]
 	@test get_kernel(C) ==  [log(1.0),  log(0.6), log(6.0), log(3.0)]
 	@test get_kernel(S) ==  [log(0.1),  log(2.0),log(0.5)]
-	# @test Celerite2._get_coefficients(R) == ([0.5], [1.0], Float64[], Float64[], Float64[], Float64[])
-	# @test Celerite2._get_coefficients(C) == (Float64[], Float64[], [1.0], [0.6], [6.0], [3.0000000000000004])
 
 	@test isapprox(R(x[1:10][2:end]),[0.48652619, 0.45662424, 0.41771208, 0.38564919, 0.38558133,
        0.33454944, 0.32102731, 0.31308588, 0.29504727])
@@ -27,12 +25,39 @@
 
 	@test maximum(abs.(prod_2_kernels(x[1:10])[2:end] .- [0.08875829, 0.06517056, 0.03948934, 0.02366072, 0.02363244,
        0.008074  , 0.0056213 , 0.0044454 , 0.00240179])) <= 1e-6
-	# k1=celerite.RealTerm(log(0.5), log(1.0)) 
-	# k2=celerite.SHOTerm(log(0.1), log(2.0), log(0.5))
-	# k3=celerite.ComplexTerm(log(1.0),log(0.6),log(6.0),log(3.0))
-	# @test Celerite2._get_coefficients(sum_2_kernels)==celerite.get_all_coefficients(k1+k2)
-	# @test R(x) == celerite.get_value(k1,x)
-	# @test sum_2_kernels(x) == celerite.get_value(celerite.TermSum((k1,k2)),x)
-	# @test sum_3_kernels(x)==celerite.get_value(celerite.TermSum((k1,k2,k3)),x) 
-	# @test Celerite2._get_coefficients(R*SHO)==celerite.get_all_coefficients(k1*k2)
+
+	# alt_SHO=celerite.RealTerm(log(0.5), log(1.0)) 
+	# standard_SHO=celerite.SHOTerm(log(0.1), log(2.0), log(0.5))
+	# alt_SHO_2=celerite.ComplexTerm(log(1.0),log(0.6),log(6.0),log(3.0))
+	# @test Celerite2._get_coefficients(sum_2_kernels)==celerite.get_all_coefficients(alt_SHO+standard_SHO)
+	# @test R(x) == celerite.get_value(alt_SHO,x)
+	# @test sum_2_kernels(x) == celerite.get_value(celerite.TermSum((alt_SHO,standard_SHO)),x)
+	# @test sum_3_kernels(x)==celerite.get_value(celerite.TermSum((alt_SHO,standard_SHO,alt_SHO_2)),x) 
+	# @test Celerite2._get_coefficients(R*SHO)==celerite.get_all_coefficients(alt_SHO*standard_SHO)
+  end
+  @testset "kwarg kernels" begin
+	alt_SHO = SHOKernel(;log_σ = 1.0,log_Q = 4.0, log_ρ = 10.0)
+	standard_SHO = SHOKernel(;log_S0 = 6.1621229335906555,log_Q = 4.0, log_ω0 = -8.162122933590656)
+	alt_SHO_2 = SHOKernel(;log_σ = 1.0,log_Q = 4.0, log_ω0 =  -8.162122933590656)
+	alt_SHO_3 = SHOKernel(;log_σ = 1.0,log_τ = 12.855270114150601, log_ρ = 10.0)
+
+	@test alt_SHO_3.log_ρ == standard_SHO.log_ρ == alt_SHO.log_ρ == alt_SHO_2.log_ρ
+	@test alt_SHO_3.log_ω0 == standard_SHO.log_ω0 == alt_SHO.log_ω0 == alt_SHO_2.log_ω0
+	@test alt_SHO_3.log_S0 == standard_SHO.log_S0 == alt_SHO.log_S0 == alt_SHO_2.log_S0
+	@test alt_SHO_3.log_τ == standard_SHO.log_τ == alt_SHO.log_τ == alt_SHO_2.log_τ
+	@test alt_SHO_3.log_σ == standard_SHO.log_σ == alt_SHO.log_σ == alt_SHO_2.log_σ
+	@test alt_SHO_3.log_Q == standard_SHO.log_Q == alt_SHO.log_Q == alt_SHO_2.log_Q
+
+	@test get_kernel(alt_SHO) == get_kernel(standard_SHO) == get_kernel(alt_SHO_2) == get_kernel(alt_SHO_3)
+
+	kwarg_SHO = SHOKernel(;log_S0 = 0.1,log_ω0 = 2.0, log_Q = 0.5)
+
+	set_kernel!(alt_SHO_3,get_kernel(kwarg_SHO))
+	
+	@test alt_SHO_3.log_ρ == kwarg_SHO.log_ρ 
+	@test alt_SHO_3.log_ω0 == kwarg_SHO.log_ω0 
+	@test alt_SHO_3.log_S0 == kwarg_SHO.log_S0 
+	@test alt_SHO_3.log_τ == kwarg_SHO.log_τ
+	@test alt_SHO_3.log_σ == kwarg_SHO.log_σ
+	@test alt_SHO_3.log_Q == kwarg_SHO.log_Q 
   end

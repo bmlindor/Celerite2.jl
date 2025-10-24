@@ -156,32 +156,6 @@ function _simulate_gp(D::Vector{Float64},U::Array{Float64, 2},W::Array{Float64, 
     return y
 end
 
-function _init_matrices(kernel::Tk,x::AbstractVector,σ::AbstractVector) where Tk <: CeleriteKernel
-    # Initialize matrices for K
-    ar, cr, ac, bc, cc, dc = _get_coefficients(kernel)
-    # Compute the dimensions of the problem:
-    N=length(x)
-    # Number of real and complex components:
-    Jr = length(ar);    Jc = length(ac)
-    # Rank of semi-separable components:
-    J = Jr + 2*Jc
-    # Sum over the diagonal kernel amplitudes to get elements of the diagonal:
-    A = σ.^2 .+ (sum(ar) + sum(ac))
-    # Compute time lag:
-    dx = x[2:N] - x[1:N-1]
-    trig_arg = x * dc'
-    cosdt = cos.(trig_arg)
-    sindt = sin.(trig_arg) 
-    # Compute the real and complex components of Ũ,Ṽ, and ϕ :
-    ϕc = exp.(-dx * cc')
-    U = cat(    (ones(N) * ar')', 
-                (cosdt .* ac' + sindt .* bc')' ,
-                (sindt .* ac' - cosdt .* bc')' ,dims=1)
-    V = cat(    ones(N,Jr)' ,  cosdt'  , sindt' ,dims=1)
-    ϕ = cat(  (ones(N-1) .* exp.( -dx * cr'))', ϕc',ϕc',dims=1)
-    return U, V, ϕ, A
-end
-
 function _mat_mult(A::Vector{Float64},U::Array{Float64, 2},V::Array{Float64, 2},ϕ::Array{Float64,2},z::AbstractVector)
     # Compute y =  K . z 
     J,N = size(U)

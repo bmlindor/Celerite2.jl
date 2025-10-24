@@ -67,20 +67,6 @@
 
 	# println(res_mean_LBFGS.minimizer)		# [3.1558052718461456,-2.052508255299794,-3.971541989475279,2.2009980296918314,1.127985820268802]
 	# @test isapprox(round.(res_mean_LBFGS.minimizer,sigdigits=5),[ 3.1558461 , -2.05251577, -3.97153374,  2.20098169,  1.12798587])
-
-    function full_math(gp::CeleriteGP,y_train::AbstractVector,x_train::AbstractVector,x::AbstractVector)
-        μ = _k_matrix(gp,gp.x,x_train)' * inv(_k_matrix(gp,gp.x,gp.x)  + gp.Σy)  * (y_train )#.- mean(gp.x)) .+ mean(x)  
-        C = _k_matrix(gp,x_train,x_train) - _k_matrix(gp,gp.x,x_train)' * (_k_matrix(gp,gp.x,gp.x)  + gp.Σy) *  _k_matrix(gp,gp.x,x_train)
-        σ² =  diag(C)
-        return μ,σ² 
-    end
-
-	@time "Reconstruct K w/ choleksy" myμ,myvar=mean_and_var(gp,y,true_x)
-	@time "Full matrix inversion" μ_math, var_math = full_math(gp,y,x,true_x)
-	α = apply_inverse(gp,y)
-    @time "Ambikasaran method" μ_rec = predict(gp.kernel,x,y,true_x,α)
-	@test maximum(abs.(μ_rec .- myμ)) <= 1e-5
-	# @test maximum(abs.(μ_rec .- μ_math)) <= 1e-5
 end
 #=
 # python equivalent

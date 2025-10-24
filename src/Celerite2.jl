@@ -18,6 +18,5 @@ include("core.jl") # core math for cholesky factorization, applying inverse, mat
 include("psd.jl")
 include("gp.jl") 
 include("utils.jl")
-include("grad.jl")
-
+# include("grad.jl")
 end 

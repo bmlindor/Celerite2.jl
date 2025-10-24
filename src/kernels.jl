@@ -1,15 +1,10 @@
 	abstract type CeleriteKernel <: KernelFunctions.Kernel end 
 	"""
-	 The covariance function for data y with measurement error σ is 
+	 The covariance matrix for data y with measurement error σ is 
 
 		K(τ) = σ² × δ + ∑_j k_j(τ)
 
 	where τ = |t_n - t_m| is the input, and δ is the Kronecker delta.
-	A general Celerite kernel is : 
-		k_j(τ) = [a_j × cos{-d_j × τ}]+ [b_j × sin{-d_j × τ}] × e^{-c_j × τ} 
-
-	A real kernel (where b_j=0 and d_j=0) is :
-		k_j(τ) = a_j × exp(-c_j × τ)
 	""" 
 ## Types and structures
 	struct ComplexKernel{T} <: CeleriteKernel
@@ -20,6 +15,12 @@
 		log_d::Vector{T}
 	end
 
+	"""
+    	ComplexKernel(log_a::T,log_b::T,log_c::T,log_d::T) where T<:Float64
+
+	Create a complex kernel, with a covariance function given by: 		
+	k_j(τ) = [a_j × cos{-d_j × τ}]+ [b_j × sin{-d_j × τ}] × e^{-c_j × τ} 
+	"""
 	function ComplexKernel(log_a::T,log_b::T,log_c::T,log_d::T) where T<:Float64
 		return ComplexKernel([log_a],[log_b],[log_c],[log_d])
 	end
@@ -34,6 +35,12 @@
 		log_c::Vector{T}
 	end
 
+	"""
+    RealKernel(log_a::T,log_c::T) where T<:Float64
+
+	Create a real kernel, where b_j and d_j are set to zero, with a covariance function given by:
+	k_j(τ) = a_j × exp(-c_j × τ)
+	"""
 	function RealKernel(log_a::T,log_c::T) where T<:Float64
 		return RealKernel([log_a],[log_c])
 	end
@@ -44,24 +51,64 @@
 
 	struct SHOKernel{T} <: CeleriteKernel
 	# Simple harmonic oscillator (SHO) kernel
-		log_S0::Vector{T} 	# ∝ power spectral density at ω0
-		log_Q::Vector{T} 	# oscillator quality factor
-		log_ω0::Vector{T} 	# frequency of undamped oscillator
+		log_S0::Vector{T} 	# S0 ∝ power spectral density at ω0
+		log_Q::Vector{T} 	# oscillator quality factor, Q
+		log_ω0::Vector{T} 	# frequency of undamped oscillator, ω0
+		# alternative parameterizations
+		# ω0 = 2pi/ρ
+		# Q = τ * ω0 * 0.5
+		# σ = sqrt(ω0 * Q * S0)
+		log_ρ::Vector{T}	# the undamped period of the oscillator, ρ
+		log_τ::Vector{T}	# the damping timescale of the process, τ
+		log_σ::Vector{T}	# the standard deviation of the process, σ
 	end
 
-	function SHOKernel(log_S0::T,log_Q::T,log_ω0::T) where T<:Float64
-		return SHOKernel([log_S0],[log_Q],[log_ω0])
+	"""
+    	SHOKernel(log_S0::T,log_Q::T,log_ω0::T;kwargs...) where T<:Float64
+
+	Create a stochastically-driven, damped harmonic oscillator kernel that captures a RealKernel for 0 < Q < 1/2, and a ComplexKernel for Q ≥ 1/2.
+	The covariance function is dominated k_(τ) = [S₀ × ω₀ × Q] × e^{- ω₀ × τ / 2 × Q} 
+
+	"""
+	function SHOKernel(log_S0::T,log_Q::T,log_ω0::T; kwargs...) where T<:Float64
+		log_ρ = log(2pi) - log_ω0	
+		log_τ = log_Q - log_ω0 - log(1) + log(2) 
+		log_σ = (log_S0 + log_ω0 + log_Q)/2
+		return SHOKernel([log_S0],[log_Q],[log_ω0],[log_ρ],[log_τ],[log_σ])
 	end
 
-	function SHOKernel(;ρ::Float64,τ::Float64,σ::Float64)
-		# alternative parameterization
-		# ρ::Vector{T} # the undamped period of the oscillator
-		# τ::Vector{T} # the damping timescale of the process
-		# σ::Vector{T} # the standard deviation of the process
-		ω0 = 2pi/ρ
-		Q = τ * ω0 * 0.5
-		S0 = σ^2 / ω0*Q
-		return SHOKernel(log(S0),log(Q),log(ω0))
+	isnanall(x...) = all(isnan.(x))
+	replacenan(x) = isnan(x) ? zero(x) : x
+
+	function SHOKernel(;log_ρ::T=NaN,log_τ::T=NaN,log_σ::T=NaN,log_S0::T=NaN,log_Q::T=NaN,log_ω0::T=NaN) where T<:Float64
+		log_ρ,log_τ,log_σ,log_S0,log_Q,log_ω0 = promote(log_ρ,log_τ,log_σ,log_S0,log_Q,log_ω0)
+		# type = typeof(log_ω0)
+		if isnanall(log_ρ,log_ω0); throw(ArgumentError("Must specify either log_ρ or log_ω0.")); end
+		if isnanall(log_τ,log_Q); throw(ArgumentError("Must specify either log_τ or log_Q.")); end
+		if isnanall(log_σ,log_S0); throw(ArgumentError("Must specify either log_σ or log_S0.")); end
+		if !isnan(log_ρ) && !isnan(log_ω0); throw(ArgumentError("Must specify either log_ρ or log_ω0, but not both.")); end
+		if !isnan(log_τ) && !isnan(log_Q); throw(ArgumentError("Must specify either log_τ or log_Q, but not both.")); end
+		if !isnan(log_σ) && !isnan(log_S0); throw(ArgumentError("Must specify either log_σ log_S0, but not both.")); end
+		if isnan(log_ω0) && !isnan(log_ρ) 
+			log_ω0 = log(2pi) - log_ρ	
+		else
+			log_ρ = log(2pi) - log_ω0	
+		end
+		if isnan(log_Q) && !isnan(log_τ)
+			log_Q = log_τ + log_ω0 + log(1) - log(2) 
+		end
+		if isnan(log_S0) && !isnan(log_σ)
+			log_S0 = 2 * log_σ - log_ω0 - log_Q	
+		end
+		# log_ω0 = replacenan(log_ω0)
+		# log_Q = replacenan(log_Q)
+		# log_S0 = replacenan(log_S0)
+		# log_ρ = replacenan(log_ρ)
+		# log_τ = replacenan(log_τ)
+		# log_σ = replacenan(log_σ)
+		log_τ = log_Q - log_ω0 - log(1) + log(2) 
+		log_σ = (log_S0 + log_ω0 + log_Q)/2
+		return SHOKernel([log_S0],[log_Q],[log_ω0],[log_ρ],[log_τ],[log_σ])
 	end
 
 	function _get_coefficients(k::SHOKernel) 
@@ -82,7 +129,6 @@
 	end
 
 	struct RotationKernel{T} <: CeleriteKernel
-		# mixture of two SHO kernels that models stellar rotation
 		σ::Vector{T} 		# standard deviation of the process
 		period::Vector{T} 	# primary period of variability
 		Q0::Vector{T}		# quality factor of secondary oscillation
@@ -91,6 +137,11 @@
 		kernels::CeleriteKernel
 	end
 
+	"""
+    	RotationKernel(σ::T,period::T,Q0::T,dQ::T,frac::T) where T<:Real
+
+	Create a mixture of two SHO kernels that models stellar rotation.
+	"""
 	function RotationKernel(σ::T,period::T,Q0::T,dQ::T,frac::T) where T<:Real
 		amp = σ.^2 ./ (1 .+ frac)
 		@assert 0.0 <= frac <= 1.0
@@ -219,12 +270,12 @@
 	# Allow keyword arguments
 	ComplexKernel(; log_a::Float64=0.0,log_b::Float64=0.0,log_c::Float64=0.0,log_d::Float64=0.0)=ComplexKernel(log_a,log_b,log_c,log_d)
 	RealKernel(; log_a::Real=0.0,log_c::Real=0.0)=RealKernel(log_a,log_c)
-	SHOKernel(;log_S0::Float64=1.0,log_Q::Float64=1.0,log_ω0::Float64=1.0)=SHOKernel(log_S0,log_Q,log_ω0)
-	RotationKernel(;σ::Float64=1.5,period::Float64=3.45,Q0::Float64=1.3,dQ::Float64=1.05,frac::Float64=0.5) = RotationKernel(σ,period,Q0,dQ,frac)	
+	RotationKernel(;log_σ::Float64=1.5,period::Float64=3.45,log_Q0::Float64=1.3,log_dQ::Float64=1.05,frac::Float64=0.5) = RotationKernel(exp(log_σ),period,exp(log_Q0),exp(log_dQ),frac)	
+	# RotationKernel(;σ::Float64=1.5,period::Float64=3.45,Q0::Float64=1.3,dQ::Float64=1.05,frac::Float64=0.5) = RotationKernel(σ,period,Q0,dQ,frac)	
 	# ComplexKernel(; a::Float64=1.0,b::Float64=1.0,c::Float64=1.0,d::Float64=1.0)=ComplexKernel(log(a),log(b),log(c),log(d))
 	# RealKernel(; a::Real=1.0,c::Real=1.0)=RealKernel(log(a),log(c))
+	# SHOKernel(;log_S0::Float64=1.0,log_Q::Float64=1.0,log_ω0::Float64=1.0)=SHOKernel(log_S0,log_Q,log_ω0)
 	# SHOKernel(;S0::Float64=1.0,Q::Float64=1.0,ω0::Float64=1.0)=SHOKernel(log(S0),log(Q),log(ω0)) 
-	# RotationKernel(;σ::Float64=1.5,period::Float64=3.45,log_Q0::Float64=1.3,log_dQ::Float64=1.05,frac::Float64=0.5) = RotationKernel(σ,period,exp(log_Q0),exp(log_dQ),frac)	
 
 	# Overload size to length of components
 	Base.size(k::ComplexKernel) = 4
@@ -234,6 +285,11 @@
 	Base.size(k::CeleriteKernelProduct) = +(map(size,k.kernels)...)
 	Base.size(k::RotationKernel) = 5
 
+	"""
+    	get_kernel(k::CeleriteKernel)
+
+	Retrieve the values of the kernel components.
+	"""
 	get_kernel(k::ComplexKernel) = [only(k.log_a),only(k.log_b),only(k.log_c),only(k.log_d)]
 	get_kernel(k::SHOKernel) = [only(k.log_S0),only(k.log_Q),only(k.log_ω0)]
 	get_kernel(k::RealKernel) = [only(k.log_a),only(k.log_c)]
@@ -253,6 +309,10 @@
 
 	function set_kernel!(kernel::SHOKernel,vector)
 		kernel.log_S0 .= [vector[1]] ; kernel.log_Q .= [vector[2]] ; kernel.log_ω0 .= [vector[3]]
+		# update alternative parameterizations
+		kernel.log_ρ .= [log(2pi) - vector[3]] ; 
+		kernel.log_τ .= [vector[2] - vector[3] - log(1) + log(2)] ; 
+		kernel.log_σ .= [(vector[1] + vector[3] + vector[2])/2]
 	end
 
 	function set_kernel!(kernel::RotationKernel,vector)

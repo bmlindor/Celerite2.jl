@@ -33,6 +33,77 @@ SHOKernel(u::ForwardDiff.Dual,v::Float64,z::ForwardDiff.Dual) = SHOKernel(Forwar
         end
     end
 
+    function _init_matrices(kernel::Tk,x::AbstractVector,σ::AbstractVector) where Tk <: CeleriteKernel
+        # Initialize matrices for K
+        ar, cr, ac, bc, cc, dc = _get_coefficients(kernel)
+        # Compute the dimensions of the problem:
+        N=length(x)
+        # Number of real and complex components:
+        Jr = length(ar);    Jc = length(ac)
+        # Rank of semi-separable components:
+        J = Jr + 2*Jc
+        # Sum over the diagonal kernel amplitudes to get elements of the diagonal:
+        A = σ.^2 .+ (sum(ar) + sum(ac))
+        # Compute time lag:
+        dx = x[2:N] - x[1:N-1]
+        trig_arg = x * dc'
+        cosdt = cos.(trig_arg)
+        sindt = sin.(trig_arg) 
+        # Compute the real and complex components of U,V, and ϕ :
+        ϕc = exp.(-dx * cc')
+        U = cat(    (ones(N) * ar')', 
+                    (cosdt .* ac' + sindt .* bc')' ,
+                    (sindt .* ac' - cosdt .* bc')' ,dims=1)
+        V = cat(    ones(N,Jr)' ,  cosdt'  , sindt' ,dims=1)
+        ϕ = cat(  (ones(N-1) .* exp.( -dx * cr'))', ϕc',ϕc',dims=1)
+        return U, V, ϕ, A
+    end
+
+    function _factor_after_init!(A::Vector{Float64}, U::Array{Float64, 2},W::Array{Float64, 2},ϕ::Array{Float64,2})
+        # at input A = D, and V = W
+        J,N=size(U)
+        W[:,1] ./= A[1] 
+
+        # Allocate array for recursive computation of low-rank matrices:   
+        S::Array{Float64, 2} =zeros(J, J);
+        Dn = 0.0 ; Sk = 0.0 ;  ; tmp = 0.0 ;Wj = 0.0 ; ϕj = 0.0 ;  Uj = 0.0
+        @inbounds for n in 2:N 
+            Dn = A[n-1]
+            for j in 1:J, k in 1:j
+                S[k,j] = (ϕ[j,n-1] * ϕ[k,n-1]) * (S[k,j] + (Dn * W[j,n-1] * W[k,n-1]))
+            end
+            Dn = 0.0
+            for j in 1:J
+                Uj= U[j,n]
+                Wj = W[j,n]
+                for k in 1:j-1
+                    Sk = S[k,j]
+                    tmp = Uj * Sk
+                    Dn +=  tmp * U[k,n]
+                    Wj -= U[k,n] * Sk
+                    W[k,n] -= tmp
+                end
+                tmp = Uj * S[j,j]
+                Dn += .5 * Uj * tmp
+                W[j,n] = Wj - tmp 
+            end
+            Dn = A[n] - 2 * Dn
+            A[n] = Dn
+            if Dn <= 0
+                @warn "Diagonal is not positive definite." 
+                # This should only happen during parameter inference.
+            return 0
+                # break?
+                #  apply sturm's theorem ?
+            end
+            for j in 1:J
+                W[j,n] /= Dn 
+            end
+        end # n loop
+        logdetK=sum(log.(A))
+        return logdetK
+    end
+
     function _semi_separable_kernelmatrix(k::CeleriteKernel,x::Vector,σ::Vector)
         ar, cr, ac, bc, cc, dc=_get_coefficients(k)
         N=length(x)
