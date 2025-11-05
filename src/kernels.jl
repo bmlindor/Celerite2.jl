@@ -16,12 +16,12 @@
 	end
 
 	"""
-    	ComplexKernel(log_a::T,log_b::T,log_c::T,log_d::T) where T<:Float64
+    	ComplexKernel(log_a::T,log_b::T,log_c::T,log_d::T) where T<:Real
 
 	Create a complex kernel, with a covariance function given by: 		
 	k_j(τ) = [a_j × cos{-d_j × τ}]+ [b_j × sin{-d_j × τ}] × e^{-c_j × τ} 
 	"""
-	function ComplexKernel(log_a::T,log_b::T,log_c::T,log_d::T) where T<:Float64
+	function ComplexKernel(log_a::T,log_b::T,log_c::T,log_d::T) where T<:Real
 		return ComplexKernel([log_a],[log_b],[log_c],[log_d])
 	end
 
@@ -36,12 +36,12 @@
 	end
 
 	"""
-    RealKernel(log_a::T,log_c::T) where T<:Float64
+    RealKernel(log_a::T,log_c::T) where T<:Real
 
 	Create a real kernel, where b_j and d_j are set to zero, with a covariance function given by:
 	k_j(τ) = a_j × exp(-c_j × τ)
 	"""
-	function RealKernel(log_a::T,log_c::T) where T<:Float64
+	function RealKernel(log_a::T,log_c::T) where T<:Real
 		return RealKernel([log_a],[log_c])
 	end
 
@@ -64,13 +64,13 @@
 	end
 
 	"""
-    	SHOKernel(log_S0::T,log_Q::T,log_ω0::T;kwargs...) where T<:Float64
+    	SHOKernel(log_S0::T,log_Q::T,log_ω0::T;kwargs...) where T<:Real
 
 	Create a stochastically-driven, damped harmonic oscillator kernel that captures a RealKernel for 0 < Q < 1/2, and a ComplexKernel for Q ≥ 1/2.
 	The covariance function is dominated k_(τ) = [S₀ × ω₀ × Q] × e^{- ω₀ × τ / 2 × Q} 
 
 	"""
-	function SHOKernel(log_S0::T,log_Q::T,log_ω0::T; kwargs...) where T<:Float64
+	function SHOKernel(log_S0::T,log_Q::T,log_ω0::T; kwargs...) where T<:Real
 		log_ρ = log(2pi) - log_ω0	
 		log_τ = log_Q - log_ω0 - log(1) + log(2) 
 		log_σ = (log_S0 + log_ω0 + log_Q)/2
@@ -80,7 +80,7 @@
 	isnanall(x...) = all(isnan.(x))
 	replacenan(x) = isnan(x) ? zero(x) : x
 
-	function SHOKernel(;log_ρ::T=NaN,log_τ::T=NaN,log_σ::T=NaN,log_S0::T=NaN,log_Q::T=NaN,log_ω0::T=NaN) where T<:Float64
+	function SHOKernel(;log_ρ::T=NaN,log_τ::T=NaN,log_σ::T=NaN,log_S0::T=NaN,log_Q::T=NaN,log_ω0::T=NaN) where T<:Real
 		log_ρ,log_τ,log_σ,log_S0,log_Q,log_ω0 = promote(log_ρ,log_τ,log_σ,log_S0,log_Q,log_ω0)
 		# type = typeof(log_ω0)
 		if isnanall(log_ρ,log_ω0); throw(ArgumentError("Must specify either log_ρ or log_ω0.")); end
@@ -268,9 +268,9 @@
 
 ## Properties ##
 	# Allow keyword arguments
-	ComplexKernel(; log_a::Float64=0.0,log_b::Float64=0.0,log_c::Float64=0.0,log_d::Float64=0.0)=ComplexKernel(log_a,log_b,log_c,log_d)
+	ComplexKernel(; log_a::Real=0.0,log_b::Real=0.0,log_c::Real=0.0,log_d::Real=0.0)=ComplexKernel(log_a,log_b,log_c,log_d)
 	RealKernel(; log_a::Real=0.0,log_c::Real=0.0)=RealKernel(log_a,log_c)
-	RotationKernel(;log_σ::Float64=1.5,period::Float64=3.45,log_Q0::Float64=1.3,log_dQ::Float64=1.05,frac::Float64=0.5) = RotationKernel(exp(log_σ),period,exp(log_Q0),exp(log_dQ),frac)	
+	RotationKernel(;log_σ::Real=1.5,period::Real=3.45,log_Q0::Real=1.3,log_dQ::Real=1.05,frac::Real=0.5) = RotationKernel(exp(log_σ),period,exp(log_Q0),exp(log_dQ),frac)	
 	# RotationKernel(;σ::Float64=1.5,period::Float64=3.45,Q0::Float64=1.3,dQ::Float64=1.05,frac::Float64=0.5) = RotationKernel(σ,period,Q0,dQ,frac)	
 	# ComplexKernel(; a::Float64=1.0,b::Float64=1.0,c::Float64=1.0,d::Float64=1.0)=ComplexKernel(log(a),log(b),log(c),log(d))
 	# RealKernel(; a::Real=1.0,c::Real=1.0)=RealKernel(log(a),log(c))
@@ -281,9 +281,9 @@
 	Base.size(k::ComplexKernel) = 4
 	Base.size(k::SHOKernel) = 3
 	Base.size(k::RealKernel) = 2
+	Base.size(k::RotationKernel) = 5
 	Base.size(k::CeleriteKernelSum) = +(map(size,k.kernels)...)
 	Base.size(k::CeleriteKernelProduct) = +(map(size,k.kernels)...)
-	Base.size(k::RotationKernel) = 5
 
 	"""
     	get_kernel(k::CeleriteKernel)
@@ -293,9 +293,9 @@
 	get_kernel(k::ComplexKernel) = [only(k.log_a),only(k.log_b),only(k.log_c),only(k.log_d)]
 	get_kernel(k::SHOKernel) = [only(k.log_S0),only(k.log_Q),only(k.log_ω0)]
 	get_kernel(k::RealKernel) = [only(k.log_a),only(k.log_c)]
+	get_kernel(k::RotationKernel) = [only(k.σ),only(k.period),only(k.Q0),only(k.dQ),only(k.frac)]
 	get_kernel(k::CeleriteKernelSum) = cat(map(get_kernel,k.kernels)...,dims=1)
 	get_kernel(k::CeleriteKernelProduct) = cat(map(get_kernel,k.kernels)...,dims=1)	
-	get_kernel(k::RotationKernel) = [only(k.stdev),only(k.period),only(k.Q0),only(k.dQ),only(k.frac)]
 
 	# Update kernel components
 	function set_kernel!(kernel::ComplexKernel,vector)
@@ -316,7 +316,7 @@
 	end
 
 	function set_kernel!(kernel::RotationKernel,vector)
-		kernel.stdev .= [vector[1]] ; kernel.period .= [vector[2]] ; kernel.Q0 .= [vector[3]]
+		kernel.σ .= [vector[1]] ; kernel.period .= [vector[2]] ; kernel.Q0 .= [vector[3]]
 		kernel.dQ .= [vector[4]] ; kernel.frac .= [vector[5]] 
 	end
 
@@ -369,7 +369,7 @@
 	# Show components
 	function Base.show(io::IO, k::RotationKernel)
 		return print(
-	    io, "Rotation Kernel (stdev = ", only(k.stdev), ", period = " , only(k.period),", Q0 = ", only(k.Q0), ", dQ = ", only(k.dQ), ", frac = ", only(k.frac),")")
+	    io, "Rotation Kernel (σ = ", only(k.σ), ", period = " , only(k.period),", Q0 = ", only(k.Q0), ", dQ = ", only(k.dQ), ", frac = ", only(k.frac),")")
 	end
  
 	function Base.show(io::IO, k::ComplexKernel)
