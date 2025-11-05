@@ -1,0 +1,35 @@
+name: CI
+on:
+  push:
+    branches:
+      - main
+    tags: '*'
+    paths:
+      - 'src/**'
+      - 'test/**'
+      - 'docs/**'
+      - '.github/workflows/CI.yml'
+      - 'Project.toml'
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'test/**'
+      - 'docs/**'
+      - '.github/workflows/CI.yml'
+      - 'Project.toml'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Set up Julia
+      uses: julia-actions/setup-julia@v1
+      with:
+        version: '~1.11'
+    - name: Install Dependencies
+      run: julia -e 'using Pkg; Pkg.instantiate()'
+    - name: Run Tests
+      run: | 
+        cd $GITHUB_WORKSPACE && julia -e 'using Pkg; Pkg.activate(pwd()) ;  Pkg.instantiate(); Pkg.test("Celerite2")'
