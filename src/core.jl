@@ -1,4 +1,4 @@
-function _factorize!(D::Vector{Float64}, U::Array{Float64, 2},W::Array{Float64, 2},ϕ::Array{Float64,2},coeffs::NTuple{6,Vector{Float64}}, x::Vector{Float64}, Σy::Diagonal{Float64})
+function _factorize!(D::Vector{Float64}, U::Array{Float64, 2},W::Array{Float64, 2},ϕ::Array{Float64,2},coeffs::NTuple{6,Vector{T}}, x::Vector{Float64}, Σy::Diagonal{Float64}) where T <: Real
     # Do cholesky decomposition.
     ar, cr, ac, bc, cc, dc=coeffs
     N = size(x,1)

@@ -1,11 +1,5 @@
 @testset "optimize" begin
-	# filename = string("../..//Celerite2.jl/test/simulated_gp_data.txt")
-	# data=readdlm(filename,comments=true)
-	# x = data[:,1];
-    # y = data[:,2];
-    # yerr = data[:,3];
-    # true_x = data[:,4];
-    # true_y = data[:,5];
+
 	# non periodic component
 	Q = 1.0/sqrt(2.0) ; w0 = 3.0
 	S0 = var(y) ./ (w0 * Q)

@@ -77,12 +77,12 @@
         q = randn(rng,N)
         return _sample_gp(gp,q)
     end
-    function Random.rand!(rng::AbstractRNG, gp::CeleriteGP, xs::AbstractVecOrMat{<:Real})
-        q = randn(rng,length(xs))
+    function Random.rand!(rng::AbstractRNG, gp::CeleriteGP, ys::AbstractVecOrMat{<:Real})
+        q = randn(rng,length(ys))
         m = mean(gp)
-        xs .+= _sample_gp(gp,q)
-        xs .+= m 
-        return xs
+        ys .+= _sample_gp(gp,q)
+        ys .+= m 
+        return ys
     end
 
 # Compute invKy, or α = K-¹ y 

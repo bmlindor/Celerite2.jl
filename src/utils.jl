@@ -1,11 +1,3 @@
-# for sampling
-RealKernel(u::ForwardDiff.Dual,v::ForwardDiff.Dual) = RealKernel(ForwardDiff.value.(u),ForwardDiff.value.(v))
-SHOKernel(u::ForwardDiff.Dual,v::ForwardDiff.Dual,z::ForwardDiff.Dual) = SHOKernel(ForwardDiff.value.(u),ForwardDiff.value.(v),ForwardDiff.value.(z))
-ComplexKernel(s::ForwardDiff.Dual,u::ForwardDiff.Dual,v::ForwardDiff.Dual,z::ForwardDiff.Dual) = ComplexKernel(ForwardDiff.value.(s),ForwardDiff.value.(u),ForwardDiff.value.(v),ForwardDiff.value.(z))
-RotationKernel(s::ForwardDiff.Dual,t::ForwardDiff.Dual,u::ForwardDiff.Dual,v::ForwardDiff.Dual,z::ForwardDiff.Dual) = RotationKernel(ForwardDiff.value.(s),ForwardDiff.value.(t),ForwardDiff.value.(u),ForwardDiff.value.(v),ForwardDiff.value.(z))
-
-SHOKernel(u::ForwardDiff.Dual,v::Float64,z::ForwardDiff.Dual) = SHOKernel(ForwardDiff.value.(u),v,ForwardDiff.value.(z))
-
 ## Utils adopted from celerite.jl
     function _full_solve(k::CeleriteKernel, x::Vector,σ::Vector)
         # Compute the full covariance matrix.
