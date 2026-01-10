@@ -1,7 +1,7 @@
 name = "Celerite2"
 uuid = "d7c4d21e-f632-4ce8-8dec-1f68bf4f0d36"
-authors = ["[bmlindor] <blindor@uw.edu>"]
 version = "0.1.4"
+authors = ["[bmlindor] <blindor@uw.edu>"]
 
 [deps]
 AbstractGPs = "99985d1d-32ba-4be9-9821-2ec096f28918"
@@ -33,7 +33,7 @@ ForwardDiff = "~1"
 KernelFunctions = "0.10"
 LinearAlgebra = "~1"
 OMEinsum = "0.8,0.9"
-Optim = "~1"
+Optim = "~1, 2"
 Pkg = "1"
 Polynomials = "4.0"
 Random = "1"
