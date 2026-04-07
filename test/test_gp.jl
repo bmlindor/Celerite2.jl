@@ -8,7 +8,6 @@
 	U,V,ϕ,A=_init_matrices(kernel,x,yerr)
 	logdetK = _factor_after_init!(A,U,V,ϕ)
 
-	# evaluate the GP via cholesky factorization
 	N = length(x)
     logdetK0 = _factorize!(gp.D, gp.U, gp.W, gp.ϕ, coeffs , x, gp.Σy)
 
@@ -18,7 +17,9 @@
 	@test isapprox(gp.D,A)
 	@test isapprox(gp.W,V)
 
-	logL=logpdf(gp,y)
+	# compare GP from factorization to full solution
+	invKy =  _solve!(gp.D, gp.U, gp.W, gp.ϕ, y)
+	logL =  -0.5 *((logdetK0 + N * log(2*pi)) + (y' * invKy))
 
 	# reconstuct the covariance matrix from decomposition
 	Kmatrix = _reconstruct_K(gp,x)

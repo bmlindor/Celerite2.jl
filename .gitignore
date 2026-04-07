@@ -1,2 +1,3 @@
 test/full_solve.jl
 test/figures/*.png
+deprecated/test_DFM.jl

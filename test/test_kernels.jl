@@ -60,4 +60,23 @@
 	@test alt_SHO_3.log_τ == kwarg_SHO.log_τ
 	@test alt_SHO_3.log_σ == kwarg_SHO.log_σ
 	@test alt_SHO_3.log_Q == kwarg_SHO.log_Q 
+
+	# rotation = RotationKernel()
   end
+
+#   @testset "types" begin
+
+# 	R = RealKernel(1,3.0)
+# 	C = ComplexKernel(1.0,1.0,0,0.2)
+# 	S = SHOKernel(1.0,3.0,0)
+# 	alt_SHO = SHOKernel(;log_σ = 1.0,log_Q = 4.0, log_ρ = 10)
+# 	# println(typeof(R))
+# 	# println(typeof(C))
+# 	# println(typeof(S))
+# 	# println(typeof(alt_SHO))
+# 	kernel = R+C
+# 	gp=CeleriteGP(kernel,x,yerr)
+# 	logL=logpdf(gp,y)
+# 	# ForwardDiff.grade
+# 	# ForwardDiff.gradient(gp.kernel -> logpdf(gp,y),y)
+#   end

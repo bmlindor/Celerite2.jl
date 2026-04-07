@@ -29,6 +29,7 @@ using Celerite2,Distributions,AbstractGPs,LinearAlgebra
 #     return 
 # end
 
+
 function get_matrices(kernel::Tk,x::AbstractVector,σ::AbstractVector) where Tk <: Celerite2.CeleriteKernel
     # Initialize matrices for K
     ar, cr, ac, bc, cc, dc = Celerite2._get_coefficients(kernel)
@@ -107,7 +108,6 @@ function solve_DFM!(
   end
   return Z
 end
-
 
 function solve_grad!(
     U::AbstractMatrix,  # (N, J)

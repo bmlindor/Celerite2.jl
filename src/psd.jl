@@ -21,6 +21,15 @@
         return sqrt(2.0 / pi) .* p
     end
 
+	"""
+	If we rewrite the power spectrum with z = ω^2, the condition for positive definiteness is met by:
+
+	S(ω) = ∑_j (q_j * z + r_j ) / (z^2 + s_j * z + t_j) > 0
+
+	Construct polynomial Q₀(z) = ∑_j (q_j * z + r_j ) Π_k (z^2 + s_k * z + t_k) = 0
+	and its derivative. Evaluate coefficients of each polynomial in series. 
+
+	"""
 function _sturms_theorem(x::AbstractVector)
 	# Compute coefficients in the numerator & denominator of the PSD.
 	n_lor = round(Int, length(x)/4)
@@ -47,21 +56,21 @@ function _sturms_theorem(x::AbstractVector)
 	end
 
 	# Initialize a polynomial:
-	p0 = Polynomial(zeros(pord+1))
+	Q0 = Polynomial(zeros(pord+1))
 	for i=1:n_lor
 	# The polynomial for the current Lorentzian term in the common-denominator expression:
-	  pcur = Polynomial([r[i],q[i]])
+	  Qcur = Polynomial([r[i],q[i]])
 	  for j=1:n_lor
 	# Only multiply by the denominators from the other Lorentzians:
 	    if j != i
-	      pcur *= Polynomial([t[j],s[j],1])
+	      Qcur *= Polynomial([t[j],s[j],1])
 	    end
 	  end
-	  p0 += pcur
+	  Q0 += Qcur
 	end
 
 	# Compute the roots of this polynomial:
-	#poly_root = roots(p0)
+	#poly_root = roots(Q0)
 
 	# Now that we've computed coefficients of the polynomial, we just need
 	# to apply Sturm's theorem!
@@ -71,35 +80,35 @@ function _sturms_theorem(x::AbstractVector)
 	f_of_inf = zeros(pord+1)
 
 	# Take the derivative of the polynomial:
-	p1 = derivative(p0)
+	Q1 = derivative(Q0)
 	#println(p0)
 	#println(p1)
 	# Insert the coefficients of the z^0 term:
-	f_of_0[1] = p0(0)
-	f_of_0[2] = p1(0)
+	f_of_0[1] = Q0(0)
+	f_of_0[2] = Q1(0)
 	# Insert the coefficient of the z^(p_ord-i) term:
-	f_of_inf[1] = p0[pord]
-	f_of_inf[2] = p1[pord-1]
+	f_of_inf[1] = Q0[pord]
+	f_of_inf[2] = Q1[pord-1]
 
 	# Now, loop over the Sturm polynomial series:
 	for i=3:pord+1
-	  p2 = -rem(p0,p1)
+	  Q2 = -rem(Q0,Q1)
 	# Check that round-off error hasn't left us with a polynomial
-	# that is the same order as p0 or p1, but with a small coefficient:
-	  if length(p2) >= length(p1)
+	# that is the same order as Q0 or Q1, but with a small coefficient:
+	  if length(Q2) >= length(Q1)
 	    coeff = zeros(pord-i+2)
 	    for j=0:pord-i+1
-	      coeff[j+1]=p2[j]
+	      coeff[j+1]=Q2[j]
 	    end
-	    p2 = Polynomial(coeff)
+	    Q2 = Polynomial(coeff)
 	  end
 	# Insert the z^0 term:
-	  f_of_0[i]=p2(0)
+	  f_of_0[i]=Q2(0)
 	# Insert the z -> ∞ term:
-	  f_of_inf[i]=p2[pord-i+1]
+	  f_of_inf[i]=Q2[pord-i+1]
 	# Now move promote these polynomials, readying them for recursion in the next step:
-	  p0=copy(p1)
-	  p1=copy(p2)
+	  Q0=copy(Q1)
+	  Q1=copy(Q2)
 	end
 
 	# Now we'll compute the number of sign changes at z=0:
@@ -136,8 +145,9 @@ function _check_pos_def(coeffs)
     sturm_coeff = zeros(Float64,0)
     Jr = length(ar);    Jc = length(ac)
     for j=1:Jr+Jc
-        push!(sturm_coeff,aj[j],cj[j],cj[j],dj[j])
+        push!(sturm_coeff,aj[j],bj[j],cj[j],dj[j])
     end
+	# println("sturm_coeff: ",sturm_coeff)
     num_pos_root = _sturms_theorem(sturm_coeff)
 	if num_pos_root > 0 
 	  return false

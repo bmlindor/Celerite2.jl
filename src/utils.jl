@@ -1,3 +1,16 @@
+# for sampling
+
+RealKernel(u::ForwardDiff.Dual,v::ForwardDiff.Dual) = RealKernel(ForwardDiff.value.(u),ForwardDiff.value.(v))
+SHOKernel(u::ForwardDiff.Dual,v::ForwardDiff.Dual,z::ForwardDiff.Dual) = SHOKernel(ForwardDiff.value.(u),ForwardDiff.value.(v),ForwardDiff.value.(z))
+ComplexKernel(s::ForwardDiff.Dual,u::ForwardDiff.Dual,v::ForwardDiff.Dual,z::ForwardDiff.Dual) = ComplexKernel(ForwardDiff.value.(s),ForwardDiff.value.(u),ForwardDiff.value.(v),ForwardDiff.value.(z))
+RotationKernel(s::ForwardDiff.Dual,t::ForwardDiff.Dual,u::ForwardDiff.Dual,v::ForwardDiff.Dual,z::ForwardDiff.Dual) = RotationKernel(ForwardDiff.value.(s),ForwardDiff.value.(t),ForwardDiff.value.(u),ForwardDiff.value.(v),ForwardDiff.value.(z))
+
+RealKernel(u::ReverseDiff.TrackedReal,v::ReverseDiff.TrackedReal) = RealKernel(ReverseDiff.value.(u),ReverseDiff.value.(v))
+SHOKernel(u::ReverseDiff.TrackedReal,v::ReverseDiff.TrackedReal,z::ReverseDiff.TrackedReal) = SHOKernel(ReverseDiff.value.(u),ReverseDiff.value.(v),ReverseDiff.value.(z))
+ComplexKernel(s::ReverseDiff.TrackedReal,u::ReverseDiff.TrackedReal,v::ReverseDiff.TrackedReal,z::ReverseDiff.TrackedReal) = ComplexKernel(ReverseDiff.value.(s),ReverseDiff.value.(u),ReverseDiff.value.(v),ForwardDiff.value.(z))
+RotationKernel(s::ReverseDiff.TrackedReal,t::ReverseDiff.TrackedReal,u::ReverseDiff.TrackedReal,v::ReverseDiff.TrackedReal,z::ReverseDiff.TrackedReal) = RotationKernel(ReverseDiff.value.(s),ReverseDiff.value.(t),ForwardDiff.value.(u),ForwardDiff.value.(v),ForwardDiff.value.(z))
+SHOKernel(u::ReverseDiff.TrackedReal,v::Float64,z::ReverseDiff.TrackedReal) = SHOKernel(ReverseDiff.value.(u),v,ReverseDiff.value.(z))
+
 ## Utils adopted from celerite.jl
     function _full_solve(k::CeleriteKernel, x::Vector,σ::Vector)
         # Compute the full covariance matrix.

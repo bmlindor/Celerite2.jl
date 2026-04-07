@@ -1,19 +1,32 @@
-using HDF5
-data = h5open("/simulated_gp_data.h5")
 
-x=read(data["data"]["xobs"]);
-y=read(data["data"]["yobs"]);
-yerr= read(data["data"]["yerr"]);
-true_x=read(data["data"]["true_x"]);
-true_y=read(data["data"]["true_y"]);
+@model function gp_model(x,yerr,y)
+          prior_sigma = 2.0
+           μ ~ Normal(0.0, prior_sigma)
+           logS01 ~ Uniform(-10, 10)
+           logQ1 ~ Uniform(-10, 10)
+           logω01 ~ Uniform(-10, 10)
+            logjitter ~ Normal(0.0,0.1)
 
-using Turing, LogExpFunctions
+            kernel = Celerite2.SHOKernel(softplus(logS01), softplus(logQ1),softplus(logω01))
+            gp = Celerite2.CeleriteGP(kernel,x,yerr.+exp(logjitter),μ)
+            Turing.@addlogprob! logpdf(gp,y) 
+
+            α = Celerite2.apply_inverse(gp,y)
+            true_x = range(minimum(x), stop=maximum(x),length=length(x))
+            # y ~Normal()
+            ypred = Celerite2.predict(gp.kernel, x, y, true_x, α) 
+            y~ MvNormal(ones(length(x))*μ,myvar)
+            return (ypred = ypred,y=y)
+        end
+
+        # samples = sample(gp_model(x,yerr,y),NUTS(),100,n_adapts=10)
+# using Turing, LogExpFunctions
 @model function gp_model(x,yerr,y)
     # Assumptions (i.e. placing Priors on gp terms)
     prior_sigma = 2.0
     μ ~ Normal(0.0, prior_sigma)
     logS01 ~ Normal(0.0, prior_sigma)
-    # logQ1 ~ Normal(0.0, prior_sigma)
+    logQ1 ~ Normal(0.0, prior_sigma)
     logω01 ~ Normal(0.0, prior_sigma)
     logS02 ~ Normal(0.0, prior_sigma)
     logQ2 ~ Normal(0.0, prior_sigma)
@@ -21,7 +34,7 @@ using Turing, LogExpFunctions
     logjitter ~ Normal(0.0,0.1)
 
     # define gp that represents a distribution over functions (separate from Turing)
-    term1 = Celerite2.SHOKernel(softplus(logS01), log(0.25),softplus(logω01))
+    term1 = k = Celerite2.SHOKernel(softplus(logS01), softplus(logQ1),softplus(logω01))
     term2 = Celerite2.SHOKernel(softplus(logS02),softplus(logQ2),softplus(logω02))
     kernel = term1 + term2
     # want gp ~  MVNormal ; but need to compute gp before we can sample it 
@@ -31,7 +44,7 @@ using Turing, LogExpFunctions
     # if any(mean(gp) .< 0.0)
         # Turing.@addlogprob! -Inf
     # else
-        Turing.@addlogprob! logpdf(gp,y) 
+    Turing.@addlogprob! logpdf(gp,y) 
     # end
     # Observations (i.e. dependent variable)    
     # gps ~ product_distribution(gp) #stackoverflow error?
@@ -79,12 +92,15 @@ from celerite2.pymc import GaussianProcess, terms as pm_terms
 prior_sigma = 2.0
 with pm.Model() as model:
     mean = pm.Normal("mean", mu=0.0, sigma=prior_sigma)
-    log_w1 = pm.Normal("log_w1", mu=0.0, sigma=prior_sigma)
     log_S1 = pm.Normal("log_S1", mu=0.0, sigma=prior_sigma)
-    term1 = pm_terms.SHOTerm(w0=pm.math.exp(log_w1),Q=0.25,S0=pm.math.exp(log_S1))
-    log_w2 = pm.Normal("log_w2", mu=0.0, sigma=prior_sigma)
+    log_Q1 = pm.Normal("log_Q1", mu=0.0, sigma=prior_sigma)
+    log_w1 = pm.Normal("log_w1", mu=0.0, sigma=prior_sigma)
+        # term1 = pm_terms.SHOTerm(w0=pm.math.exp(log_w1),Q=0.25,S0=pm.math.exp(log_S1))
+
+    term1 = pm_terms.SHOTerm(w0=pm.math.exp(log_w1),Q=pm.math.exp(log_Q1),S0=pm.math.exp(log_S1))
     log_S2 = pm.Normal("log_S2", mu=0.0, sigma=prior_sigma)
     log_Q2 = pm.Normal("log_Q2", mu=0.0, sigma=prior_sigma)
+    log_w2 = pm.Normal("log_w2", mu=0.0, sigma=prior_sigma)
     term2 = pm_terms.SHOTerm(w0=pm.math.exp(log_w2), S0=pm.math.exp(log_S2), Q=pm.math.exp(log_Q2))
     log_jitter = pm.Normal("log_jitter", mu=0.0, sigma=prior_sigma)
     kernel =  term1 + term2
@@ -109,15 +125,25 @@ We recommend running at least 4 chains for robust computation of convergence dia
 >>> pm.summary(trace)
              mean     sd  hdi_3%  hdi_97%  ...  mcse_sd  ess_bulk  ess_tail  r_hat
 mean        0.032  0.754  -1.436    1.423  ...    0.028    1104.0     966.0    1.0
-log_w1     -0.828  0.647  -2.026    0.316  ...    0.015    1225.0    1484.0    1.0
 log_S1      1.919  1.333  -0.566    4.301  ...    0.036     967.0     909.0    1.0
-log_w2      1.094  0.086   0.924    1.237  ...    0.006    1086.0     463.0    1.0
+log_w1     -0.828  0.647  -2.026    0.316  ...    0.015    1225.0    1484.0    1.0
 log_S2     -3.397  0.734  -4.668   -2.071  ...    0.045     915.0     468.0    1.0
 log_Q2      1.868  0.802   0.365    3.392  ...    0.024     823.0     616.0    1.0
+log_w2      1.094  0.086   0.924    1.237  ...    0.006    1086.0     463.0    1.0
 log_jitter -5.885  0.807  -7.332   -4.542  ...    0.031    1136.0     643.0    1.0
 
+#=
+>>> pm.summary(trace)
+             mean     sd  hdi_3%  hdi_97%  mcse_mean  mcse_sd  ess_bulk  ess_tail  r_hat
+mean        0.009  0.934  -1.728    1.969      0.028    0.036    1212.0     977.0    1.0
+log_S1     -3.483  0.630  -4.584   -2.357      0.027    0.043     904.0     367.0    1.0
+log_Q1      1.939  0.765   0.572    3.423      0.026    0.020     830.0     976.0    1.0
+log_w1      1.102  0.078   0.972    1.234      0.004    0.006     801.0     414.0    1.0
+log_S2      0.910  1.532  -1.900    3.759      0.042    0.035    1352.0    1225.0    1.0
+log_Q2      1.337  1.538  -1.442    4.237      0.047    0.041    1073.0     902.0    1.0
+log_w2     -1.704  0.697  -2.869   -0.288      0.023    0.026     957.0     757.0    1.0
+log_jitter -5.872  0.785  -7.316   -4.545      0.022    0.028    1622.0    1050.0    1.0=#
 
-trace.posterior["log_jitter"][i] ]
 def set_mc_params(params, gp):
     gp.mean = params[0]
     theta = np.exp(params[1:])
@@ -125,7 +151,7 @@ def set_mc_params(params, gp):
     gp.compute(x, diag=yerr**2 + theta[5], quiet=True)
     return gp
 for i in range(0,100):
-    kernel =  terms.SHOTerm(S0=np.exp(trace.posterior["log_S1"][0,i]), Q=0.70710,w0=np.exp(trace.posterior["log_w1"][0,i])) + terms.SHOTerm(S0=np.exp(trace.posterior["log_S2"][0,i]), Q=np.exp(trace.posterior["log_Q2"][0,i]), w0=np.exp(trace.posterior["log_w2"][0,i])) 
+    kernel =  terms.SHOTerm(S0=np.exp(trace.posterior["log_S1"][0,i]), Q=trace.posterior["log_Q1"][0,i],w0=np.exp(trace.posterior["log_w1"][0,i])) + terms.SHOTerm(S0=np.exp(trace.posterior["log_S2"][0,i]), Q=np.exp(trace.posterior["log_Q2"][0,i]), w0=np.exp(trace.posterior["log_w2"][0,i])) 
     gp = celerite2.GaussianProcess(kernel, mean=trace.posterior["mean"][0,i])
     gp.compute(x, diag=yerr**2 + np.exp(trace.posterior["log_jitter"][0,i]), quiet=True)
     conditional = gp.condition(y, true_x)
