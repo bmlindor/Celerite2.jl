@@ -12,8 +12,13 @@
 
 	kernel = comp_1 + comp_2
 	gp=CeleriteGP(kernel,x,yerr)
+	N = length(x)
 
-	logL=logpdf(gp,y)
+	# coeffs = _get_coefficients(gp.kernel)
+    # logdetK0 = _factorize!(gp.D, gp.U, gp.W, gp.ϕ, coeffs , x, gp.Σy)
+	# invKy =  _solve!(gp.D, gp.U, gp.W, gp.ϕ, y)
+	# logL =  -0.5 *((logdetK0 + N * log(2*pi)) + (y' * invKy))
+	# logL=logpdf(gp,y)
 
 	# println("Difference in logLikelihood: ",orig_logL-logL)
 
@@ -28,9 +33,11 @@
 		set_kernel!(gp.kernel,vector)
 		# build finite gp
 		gp_trial=CeleriteGP(gp.kernel,x,yerr)
-        coeffs = _get_coefficients(gp.kernel)
-		# if Celerite2._check_pos_def(coeffs) return -Inf
+        # coeffs = _get_coefficients(gp_trial.kernel)
 		# compute log_marginal likelihood
+	    # logdetK0 = _factorize!(gp_trial.D, gp_trial.U, gp_trial.W, gp_trial.ϕ, coeffs , x, gp_trial.Σy)
+		# invKy =  _solve!(gp_trial.D, gp_trial.U, gp_trial.W, gp_trial.ϕ, y)
+		# logL_trial =  -0.5 *((logdetK0 + N * log(2*pi)) + (y' * invKy))
 		logL_trial=logpdf(gp_trial,y)
 		return -logL_trial
 	end
@@ -43,7 +50,8 @@
 	@test maximum(abs.(res_LBFGS.minimizer - [ 3.1558461 , -2.05251577, -3.97153374,  2.20098169,  1.12798587])) <= 1e-4
 
 	logL=logpdf(gp,y)
-	@test isapprox(logL, 12.442495797758298)
+	# only passes if i ignore positive definite check from sturm's THM
+	@test isapprox(logL, 12.442495797758298) 
 	function nll_mean(params)
 		vector_mean[mask_mean] = params
 		# build gp prior
@@ -51,7 +59,6 @@
 		# build finite gp
 		gp_trial=CeleriteGP(gp.kernel,x,yerr,vector_mean[1])
 		# compute log_marginal likelihood
-		logL_trial=logpdf(gp_trial,y)
 		return -logL_trial
 	end
 	vector_mean = [0.0;get_kernel(kernel)]

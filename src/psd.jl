@@ -138,7 +138,7 @@ function _sturms_theorem(x::AbstractVector)
 	n_pos_real = sig_0-sig_inf
 	return n_pos_real
 end
-function _check_pos_def(coeffs)
+function _check_pos_roots(coeffs)
     ar, cr, ac, bc, cc, dc=coeffs
 	aj = [ar;ac] ;cj = [cr;cc]; 
     bj = [zeros(length(ar));bc]; dj = [zeros(length(ar));dc]

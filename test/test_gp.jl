@@ -33,13 +33,24 @@
 	# compute the posterior GP, implied by observations
 	# p_fx = posterior(gp,y)
 
+	# println("Marg Likelood")
+
 	# compute the marginalized logLikelihood
-	# logpdf(p_fx(x),y)
+	# @test isapprox(logpdf(p_fx(x),y),logL)
 
 	# generate random samples from prior implied by GP 
 	noise = randn(N)
 	y0 = _sample_gp(gp,noise)
-	
+
+	@time "Choleksy decomposition" chol_y,chol_var=mean_and_var(gp,y,true_x)
+
+	# M = N*4
+    # tpred = sort!(rand(M)) .* 200
+	# α = apply_inverse(gp,y)
+	# ypred = predict(gp.kernel, x, y, true_x, α) # can replace true_x with tpred
+
+	@time "Ambikasaran method" ypred = mean(p_fx,true_x)
+	@test maximum(abs.(ypred .- chol_y)) <= 1e-5
 
 	# compute the conditional distribution (i.e. the predicted y* conditioned on observing y at inpute coordinates x)
 	function full_math(gp::CeleriteGP,y::AbstractVector,x::AbstractVector)
@@ -51,14 +62,6 @@
         σ² =  diag(C)
         return μ,σ² 
     end
-
-	@time "Choleksy decomposition" chol_y,chol_var=mean_and_var(gp,y,true_x)
-	
-	α = apply_inverse(gp,y)
-	# M = N*4
-    # tpred = sort!(rand(M)) .* 200
-	@time "Ambikasaran method" ypred = predict(gp.kernel, x, y, true_x, α) # can replace true_x with tpred
-	@test maximum(abs.(ypred .- chol_y)) <= 1e-5
 
 	# @time "Full matrix inversion" math_y, math_var = full_math(gp,y,x,true_x)
 	# @test maximum(abs.(ypred .- math_y)) <= 1e-5

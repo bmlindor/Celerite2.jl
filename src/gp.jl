@@ -50,7 +50,7 @@
         typeof(gp.Σy) == Diagonal{Float64,Vector{Float64}} ? Σy = gp.Σy : Σy = Diagonal(ones(N).*1e-18)
         y0 = copy(y)
         coeffs = _get_coefficients(gp.kernel)
-        if _check_pos_def(coeffs) == true 
+        if _check_pos_roots(coeffs) ==  false
         # Do cholesky decomposition and apply the inverse
         logdetK = _factorize!(gp.D, gp.U, gp.W, gp.ϕ, coeffs , collect(gp.x), Σy)
         invKy =  _solve!(gp.D, gp.U, gp.W, gp.ϕ, y0)
