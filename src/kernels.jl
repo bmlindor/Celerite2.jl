@@ -174,6 +174,14 @@
 		return CeleriteKernelSum((kernel1, kernels...))
 	end
 
+	function +(kernel_sum::CeleriteKernelSum, kernel::CeleriteKernel)
+		return CeleriteKernelSum((kernel_sum.kernels..., kernel))
+	end
+
+	function +(kernel::CeleriteKernel, kernel_sum::CeleriteKernelSum)
+		return CeleriteKernelSum((kernel, kernel_sum.kernels...))
+	end
+
 	function _get_coefficients(k::CeleriteKernelSum) 
 	  ar = zeros(0);cr = zeros(0);
 	  ac = zeros(0);bc = zeros(0);cc = zeros(0);dc = zeros(0);
@@ -400,3 +408,30 @@
 			print(io,"\n", "\t", k)
 		end
 	end	
+
+	function Base.:(==)(x::CeleriteKernelSum, y::CeleriteKernelSum)
+	return (
+		length(x.kernels) == length(y.kernels) &&
+		all(kx == ky for (kx, ky) in zip(x.kernels, y.kernels))
+	)
+	end
+	##
+
+	##= testing
+	# function Base.show(io::IO, κ::CeleriteKernelSum)
+    # 	return printshifted(io, κ, 0)
+	# end
+
+	# function printshifted(io::IO, κ::CeleriteKernelSum, shift::Int)
+	# 	print(io, "Sum of $(length(κ)) kernels:")
+	# 	for k in κ.kernels
+	# 		print(io, "\n")
+	# 		for _ in 1:(shift + 1)
+	# 			print(io, "\t")
+	# 		end
+	# 		printshifted(io, k, shift + 2)
+	# 	end
+	# end
+
+	# printshifted(io::IO, k::CeleriteKernel, ::Int) = print(io, k)
+	

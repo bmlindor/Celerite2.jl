@@ -13,9 +13,13 @@
        0.08234227, 0.0575695 , 0.04565173, 0.0248403 ])
 	@test isapprox(round.(S(x[1:10])[2:end],sigdigits=7),[0.09999069, 0.09989785, 0.09960209, 0.09917618, 0.09917508,
        0.09805416, 0.09764373, 0.0973764 , 0.09668921])
-	
-	sum_2_kernels=R+C;		sum_3_kernels=R+S+C
 
+	sum_2_kernels=R+C;		sum_3_kernels=R+S+C
+	@test sum_3_kernels == CeleriteKernelSum((R,S,C))
+	sum_2_kernels_plus_S = sum_2_kernels + S
+	# println("sum_2_kernels_plus_S: ", sum_2_kernels_plus_S)
+	@test sum_2_kernels_plus_S == CeleriteKernelSum((R,C,S))
+	@test sum_2_kernels_plus_S.kernels == (R,C,S)
 	@test isapprox(sum_2_kernels(x[1:10])[2:end],[1.37419172, 1.1089962 , 0.81418306, 0.62422176, 0.62387148,
        0.41689172, 0.37859681, 0.35873761, 0.31988757])
 	@test maximum(abs.(sum_3_kernels(x[1:10])[2:end] - [1.47418242, 1.20889405, 0.91378515, 0.72339794, 0.72304656,
