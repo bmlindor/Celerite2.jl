@@ -1,6 +1,6 @@
 name = "Celerite2"
 uuid = "d7c4d21e-f632-4ce8-8dec-1f68bf4f0d36"
-version = "0.1.4"
+version = "0.2.0"
 authors = ["[bmlindor] <blindor@uw.edu>"]
 
 [deps]
